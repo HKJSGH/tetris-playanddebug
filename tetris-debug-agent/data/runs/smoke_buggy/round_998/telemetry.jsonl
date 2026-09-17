@@ -1,0 +1,4 @@
+{"event": "round_start", "active_bugs": ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B09", "B10"]}
+{"event": "spawn", "piece": "J", "cr": [6, 0]}
+{"event": "spawn_game_over", "piece": "J"}
+{"event": "game_over", "outcome": "B10_spawn_game_over", "score": -1}

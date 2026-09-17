@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "fixed_phenomena": [],
+  "rejected": [
+    {
+      "phenomenon_id": "PH-05",
+      "suspect_function": "",
+      "attempts": 3,
+      "last_error": "patcher 未产出有效补丁",
+      "round_id": 1
+    },
+    {
+      "phenomenon_id": "PH-01",
+      "suspect_function": "",
+      "attempts": 3,
+      "last_error": "patcher 未产出有效补丁",
+      "round_id": 1
+    },
+    {
+      "phenomenon_id": "PH-07",
+      "suspect_function": "",
+      "attempts": 3,
+      "last_error": "patcher 未产出有效补丁",
+      "round_id": 1
+    },
+    {
+      "phenomenon_id": "PH-09",
+      "suspect_function": "",
+      "attempts": 3,
+      "last_error": "patcher 未产出有效补丁",
+      "round_id": 1
+    },
+    {
+      "phenomenon_id": "PH-02",
+      "suspect_function": "",
+      "attempts": 3,
+      "last_error": "patcher 未产出有效补丁",
+      "round_id": 1
+    }
+  ],
+  "remaining": [
+    "PH-01",
+    "PH-02",
+    "PH-03",
+    "PH-04",
+    "PH-05",
+    "PH-06",
+    "PH-07",
+    "PH-08",
+    "PH-09",
+    "PH-10",
+    "PH-11",
+    "PH-12"
+  ],
+  "status": "open",
+  "updated_at": "2026-09-16 00:17:16"
+}

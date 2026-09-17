@@ -1,0 +1,327 @@
+# =====================================================================
+# bugs.yaml — bug 清单文档 + 注入记录（单一事实源）
+#
+# 旧版定位（运行时开关，enabled 控制注入）已废弃：游戏 clean 基线
+# game/tetris_v0.py 不读取本文件。bug 通过在 clean 基线上引入
+# 「真实编码错误」注入到 game/tetris_buggy.py，与生产 bug 同构。
+#
+# ⚠️ 内部文档：injection / clean_code / buggy_code 字段描述了 bug 的
+#    注入位置与实现方式，禁止泄漏给 agent 的现象级 catalog
+#    （agent 只允许看 name / symptom / signal 生成到 data/catalog/ 的内容）。
+#
+# 字段说明：
+#   name:       bug 短名
+#   symptom:    玩家视角现象（生成 agent 现象级 catalog 的来源，不含代码位置）
+#   injection:  注入方式叙述（内部文档，禁止泄漏给 agent）
+#   signal:     主数据信号源（agent 定位依据）
+#   status:     pending=待注入 / injected=已注入 / fixed=已修复
+#   clean_code: clean 基线（game/tetris_v0.py）对应代码片段（内部记录）
+#   buggy_code: 注入后（game/tetris_buggy.py）对应代码片段（内部记录）
+#
+# 玩家游玩版本 = tetris_buggy.py；每修复一个即更新 status: injected → fixed。
+# =====================================================================
+
+B01:
+  name: O 块下落 5 倍速
+  symptom: "正方形(O)方块下落速度异常快，约为其他形状的 5 倍，来不及摆放。"
+  injection: >
+    遗留调试代码形态。开发期为了让 O 块快速落底在 _game_loop 帧调度处
+    临时加了加速分支，正式发布前忘记删除，保留在代码里。
+  signal: "埋点：O 块 spawn→lock 的 fall 间隔约为其他形状下落间隔的 1/5"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  _game_loop 末尾：所有方块统一帧间隔
+    self._schedule(FPS)
+  buggy_code: |
+    # tetris_buggy.py  _game_loop 末尾：O 块走加速分支
+    if self.current_block is not None and self.current_block["kind"] == "O":
+        self._schedule(FPS // 5)
+    else:
+        self._schedule(FPS)
+
+B02:
+  name: 旋转穿块
+  symptom: "方块旋转时不检查碰撞，可以旋转进已落定的方块里，出现重叠。"
+  injection: >
+    变量名写错形态。_on_rotate 末尾的碰撞检查把"检查旋转后形状 rotated"
+    误写成"检查当前块 block"，而 block 没动过必然可通行，检查恒通过，
+    旋转无条件生效。
+  signal: "埋点：rotate 事件后方块格子与已占格重叠"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  _on_rotate 末尾
+    rotated = {"kind": block["kind"], "cell_list": rotate_list, "cr": block["cr"]}
+    if self._check_move(rotated):
+        self.canvas.delete("falling")
+        self._draw_cells(block["cr"][0], block["cr"][1], rotate_list, self._color_for(block["kind"]))
+        self.current_block = rotated
+        self.rec.record({"event": "rotate", "cr": block["cr"]})
+  buggy_code: |
+    # tetris_buggy.py  _on_rotate 末尾：检查对象误写为 block（恒通过）
+    rotated = {"kind": block["kind"], "cell_list": rotate_list, "cr": block["cr"]}
+    if self._check_move(block):
+        self.canvas.delete("falling")
+        self._draw_cells(block["cr"][0], block["cr"][1], rotate_list, self._color_for(block["kind"]))
+        self.current_block = rotated
+        self.rec.record({"event": "rotate", "cr": block["cr"]})
+
+B03:
+  name: 消行不加分
+  symptom: "消除满行后分数不增加，消了行分数纹丝不动。"
+  injection: >
+    漏实现形态。_check_and_clear 更新统计时只保留了行数累加语句，
+    加分语句缺失（整行消失，非注释残留）。
+  signal: "埋点：line_clear(count>0) 但 score 无增量"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  _check_and_clear 末尾
+    if cleared:
+        self.lines_cleared_total += cleared
+        self.score += cleared * 10
+        self.rec.record({"event": "line_clear", "count": cleared, "score": self.score})
+        self._draw_board()
+        self._update_score_display()
+  buggy_code: |
+    # tetris_buggy.py  _check_and_clear 末尾：缺 self.score += cleared * 10
+    if cleared:
+        self.lines_cleared_total += cleared
+        self.rec.record({"event": "line_clear", "count": cleared, "score": self.score})
+        self._draw_board()
+        self._update_score_display()
+
+B04:
+  name: 堆满顶部不结束
+  symptom: "方块堆满到顶部、新块无处生成时游戏也不结束，新块直接叠在已有方块上，只能手动暂停重新开始。"
+  injection: >
+    漏实现形态。_game_loop 生成帧里，新块生成后的 spawn 碰撞判定块
+    （生成位置即碰撞 → finalize game_over）整个缺失，堆到顶部永不结束。
+  signal: "埋点：新块生成即与已占格碰撞但无 game_over 事件"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  _game_loop 生成帧
+    if self.current_block is None:
+        new_block = self._generate_new_block()
+        self._draw_block_move(new_block)
+        self.current_block = new_block
+        # 生成位置即碰撞（堆到顶部）：结束游戏
+        if not self._check_move(self.current_block, [0, 0]):
+            self._finalize("spawn_collision")
+            return
+  buggy_code: |
+    # tetris_buggy.py  _game_loop 生成帧：spawn 碰撞判定块整个消失
+    if self.current_block is None:
+        new_block = self._generate_new_block()
+        self._draw_block_move(new_block)
+        self.current_block = new_block
+
+B05:
+  name: 右键向左移动
+  symptom: "按右方向键方块向左移动（与左键行为相同），右移失效；左键仍正常左移。"
+  injection: >
+    复制粘贴忘改形态。_on_right 复制自 _on_left 后，方向向量没有从
+    [-1, 0] 改成 [1, 0]，导致右键也执行左移。action 埋点字段仍正确写
+    "right"，形成「action=right 但 cr 列减小」的矛盾信号。
+  signal: "埋点：move 事件 action=right 但 cr 列减小（与 action=left 行为一致）"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  _on_left / _on_right
+    def _on_left(self, event) -> None:
+        self._try_move([-1, 0], action="left")
+
+    def _on_right(self, event) -> None:
+        self._try_move([1, 0], action="right")
+  buggy_code: |
+    # tetris_buggy.py  _on_right：方向向量忘改，复制自 _on_left
+    def _on_left(self, event) -> None:
+        self._try_move([-1, 0], action="left")
+
+    def _on_right(self, event) -> None:
+        self._try_move([-1, 0], action="right")
+
+B06:
+  name: I 块颜色错乱
+  symptom: "游戏区中 I 型方块显示为红色，与「下一个」预览区的青色 I 块不一致；且场上红色方块有两种形状（I 与 Z）。"
+  injection: >
+    双份配置漂移形态。游戏区与预览区各自维护色表（COLORS /
+    PREVIEW_COLORS），COLORS 中 I 项色值被误写为 red，PREVIEW_COLORS
+    保持正确。玩家通过两点识别：① 游戏区 I 块红 ≠ 预览 I 块青；
+    ② 场上出现两种红色方块（I 与 Z 同色）。
+  signal: "截图 VLM：游戏区 I 块红色 ≠ 预览 I 块青色；玩家文字反馈颜色异常"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  头部：两表一致，游戏区/预览区同色
+    COLORS = {
+        "O": "yellow", "S": "green", "T": "purple", "I": "Cyan",
+        "L": "orange", "J": "blue", "Z": "red",
+    }
+
+    PREVIEW_COLORS = {
+        "O": "yellow", "S": "green", "T": "purple", "I": "Cyan",
+        "L": "orange", "J": "blue", "Z": "red",
+    }
+  buggy_code: |
+    # tetris_buggy.py  头部：COLORS 的 I 项漂移为 red（注释仍写 I=青，形成矛盾线索）
+    COLORS = {
+        "O": "yellow", "S": "green", "T": "purple", "I": "red",
+        "L": "orange", "J": "blue", "Z": "red",
+    }
+
+    PREVIEW_COLORS = {
+        "O": "yellow", "S": "green", "T": "purple", "I": "Cyan",
+        "L": "orange", "J": "blue", "Z": "red",
+    }
+
+B07:
+  name: 预览与实际不符
+  symptom: "侧栏「下一个」预览的方块与实际掉落下来的下一块不一致：预览显示的总是当前正在下落的方块（滞后一拍），失去预告作用。"
+  injection: >
+    语句顺序对调形态。_generate_new_block 中「更新 next_kind」与
+    「重绘预览」两行被对调：先画预览再掷新块，预览画的是刚取走的
+    当前块。配套：两版本 _draw_preview 均加 preview 埋点，否则遥测
+    无法检测。
+  signal: >
+    埋点：preview 事件与同一生成帧的 spawn 事件 kind 恒相等；
+    正确不变式应为本次 preview 与下一帧生成 kind 一致，该相关性消失。
+  status: injected
+  clean_code: |
+    # tetris_v0.py  _generate_new_block
+    kind = self.next_kind
+    self.next_kind = self._pick_kind()
+    self._draw_preview()
+    block = {"kind": kind, "cell_list": SHAPES[kind], "cr": [C // 2, 0]}
+    self.rec.record({"event": "spawn", "piece": kind, "cr": block["cr"]})
+  buggy_code: |
+    # tetris_buggy.py  _generate_new_block：先画预览再更新 next_kind（两行对调）
+    kind = self.next_kind
+    self._draw_preview()
+    self.next_kind = self._pick_kind()
+    block = {"kind": kind, "cell_list": SHAPES[kind], "cr": [C // 2, 0]}
+    self.rec.record({"event": "spawn", "piece": kind, "cr": block["cr"]})
+
+B08:
+  name: 多行同时满只消一行
+  symptom: "两行或更多行同时填满时，一次只消掉最上面一行，其余满行残留。"
+  injection: >
+    遗留调试代码形态。_check_and_clear 消行循环体内末尾残留一个 break
+    （开发期验证单行消除效果时加的），处理完第一个满行即退出循环。
+  signal: "埋点：line_clear count 恒 ≤1，且 game_state 网格中可同时存在多个满行"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  _check_and_clear（消行循环无 break）
+    for ri in range(len(self.block_list)):
+        if all(self.block_list[ri]):
+            cleared += 1
+            if ri > 0:
+                for cur_ri in range(ri, 0, -1):
+                    self.block_list[cur_ri] = self.block_list[cur_ri - 1][:]
+                self.block_list[0] = ["" for _ in range(C)]
+            else:
+                self.block_list[ri] = ["" for _ in range(C)]
+  buggy_code: |
+    # tetris_buggy.py  _check_and_clear：消行块末尾遗留 break
+    for ri in range(len(self.block_list)):
+        if all(self.block_list[ri]):
+            cleared += 1
+            if ri > 0:
+                for cur_ri in range(ri, 0, -1):
+                    self.block_list[cur_ri] = self.block_list[cur_ri - 1][:]
+                self.block_list[0] = ["" for _ in range(C)]
+            else:
+                self.block_list[ri] = ["" for _ in range(C)]
+            break
+
+B09:
+  name: 暂停后无法恢复
+  symptom: "按 Esc 暂停后，再按 Esc 无法继续游戏，暂停面板关不掉，只能点「重新开始」手动结束本轮。"
+  injection: >
+    条件取反手误形态。_resume 开头的未暂停守卫 if not self.paused:
+    return 被误写为 if self.paused: return——恢复时 paused 必为 True，
+    恢复路径恒提前返回。
+  signal: "埋点：pause 事件后无 resume 事件，最终以 manual_restart 收尾"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  _resume 开头
+    def _resume(self, event=None) -> None:
+        if not self.paused:
+            return
+  buggy_code: |
+    # tetris_buggy.py  _resume 开头：条件写反，恢复路径恒提前返回
+    def _resume(self, event=None) -> None:
+        if self.paused:
+            return
+
+B10:
+  name: 硬降失效
+  symptom: "按 ↓ 硬降时方块原地不动，无法快速落底。"
+  injection: >
+    循环边界写错形态。_on_land 计算下落高度的内层循环右边界误写为
+    r + 1（与左边界相同），区间为空，高度 h 恒 0，硬降不动。
+  signal: "埋点：hard_drop 事件 distance 恒为 0"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  _on_land 内层循环
+    h = 0
+    for ri in range(r + 1, R):
+        if self.block_list[ri][c]:
+            break
+        h += 1
+  buggy_code: |
+    # tetris_buggy.py  _on_land 内层循环：右边界误写 r + 1，空区间
+    h = 0
+    for ri in range(r + 1, r + 1):
+        if self.block_list[ri][c]:
+            break
+        h += 1
+
+B11:
+  name: 预览区残影叠加
+  symptom: "侧栏「下一个」预览区域越来越花，多个方块轮廓叠在一起；越玩越明显，但游戏仍能继续。"
+  injection: >
+    漏删除形态。_draw_preview 开头清除旧预览的
+    self.canvas.delete(self._preview_tag) 语句被删除，每次生成新块
+    都在预览区叠加绘制，旧轮廓不清理。
+  signal: "埋点无法感知（纯渲染问题）；依赖玩家文字反馈与截图（VLM 识别预览区多轮廓叠加）"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  _draw_preview 开头
+    def _draw_preview(self) -> None:
+        self.canvas.delete(self._preview_tag)
+        cell_list = SHAPES[self.next_kind]
+  buggy_code: |
+    # tetris_buggy.py  _draw_preview 开头：清除旧预览的 delete 语句缺失
+    def _draw_preview(self) -> None:
+        cell_list = SHAPES[self.next_kind]
+
+B12:
+  name: 重新开始后窗口位置重置
+  symptom: "游戏窗口默认出现在屏幕左上角；玩家把窗口拖到舒适位置后，一局结束再开新局时窗口又回到左上角，位置没有保持。"
+  injection: >
+    作用域写错形态。clean 版为实现跨局窗口位置保持，新增 initial_pos
+    参数、_setup_ui 应用初始位置、_do_finalize 收尾前捕获 _final_pos、
+    launch() 循环外用 pos 变量跨局传递。buggy 版所有环节都在且写法
+    正确，唯独 pos = None 被写进了 while 循环体内——每轮循环开头都把
+    上一局保存的位置重置为 None，跨局传递失效。
+  signal: "埋点无法感知（窗口管理问题）；依赖玩家文字反馈（重新开始后窗口回到左上角）"
+  status: injected
+  clean_code: |
+    # tetris_v0.py  launch()
+    n = round_id
+    pos: str | None = None  # 窗口位置跨局保持，None 用系统默认
+    while True:
+        game = TetrisGame(round_id=n, seed=seed, runs_root=runs_root, initial_pos=pos)
+        game.run()
+        pos = game._final_pos
+        if not game._play_again:
+            break
+        n += 1
+  buggy_code: |
+    # tetris_buggy.py  launch()：pos 被写在循环体内，每轮循环开头被重置
+    n = round_id
+    while True:
+        pos: str | None = None
+        game = TetrisGame(round_id=n, seed=seed, runs_root=runs_root, initial_pos=pos)
+        game.run()
+        pos = game._final_pos
+        if not game._play_again:
+            break
+        n += 1

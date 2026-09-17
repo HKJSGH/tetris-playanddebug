@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "fixed_phenomena": [
+    {
+      "phenomenon_id": "PH-05",
+      "suspect_function": "_on_right",
+      "hypothesis": "右键向左移动，可能是按键绑定或移动逻辑错误。",
+      "patch": {
+        "blocks": [
+          {
+            "search": "        self._try_move([-1, 0], action=\"right\")",
+            "replace": "        self._try_move([1, 0], action=\"right\")"
+          }
+        ],
+        "note": "修复右移方向错误问题，将列增量从-1改为+1"
+      },
+      "tests_passed": {
+        "passed": 3,
+        "skipped": 11
+      },
+      "attempts_used": 1
+    }
+  ],
+  "rejected": [
+    {
+      "phenomenon_id": "PH-01",
+      "suspect_function": "_generate_new_block",
+      "attempts": 3,
+      "last_error": "pytest failed=2:     invoked from within\nE       \"uplevel #0 [list source -encoding utf-8 $file]\"\nE       \nE       \nE       This probably means that tk wasn't installed properly.\n\nD:\\tools\\python\\Lib\\tkinter\\__init__.py:2346: TclError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B01.py::test_b01_o_piece_normal_fall_rate - asser...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B01] - _...\n2 failed, 1 passed, 11 skipped in 3.48s\n",
+      "round_id": 1
+    },
+    {
+      "phenomenon_id": "PH-02",
+      "suspect_function": "_check_move",
+      "attempts": 3,
+      "last_error": "pytest failed=2: lse, 'paused': False, 'score': 0, 'lines': 0, ...}} != {'final': {'game_over': False, 'paused': False, 'score': 0, 'lines': 0, ...}}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B02.py::test_b02_rotation_rejected_when_colliding\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B02] - A...\n2 failed, 1 passed, 11 skipped in 0.40s\n",
+      "round_id": 1
+    },
+    {
+      "phenomenon_id": "PH-09",
+      "suspect_function": "_on_pause",
+      "attempts": 3,
+      "last_error": "pytest failed=3: != {'events': [{'event': 'resume', 'success': True}]}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_after_pause - assert True...\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_is_noop_when_not_paused\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B09] - A...\n3 failed, 1 passed, 10 skipped in 0.25s\n",
+      "round_id": 3
+    }
+  ],
+  "remaining": [
+    "PH-01",
+    "PH-02",
+    "PH-03",
+    "PH-04",
+    "PH-06",
+    "PH-07",
+    "PH-08",
+    "PH-09",
+    "PH-10",
+    "PH-11",
+    "PH-12"
+  ],
+  "status": "open",
+  "updated_at": "2026-09-16 20:21:57"
+}

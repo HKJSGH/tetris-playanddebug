@@ -1,0 +1,21 @@
+# 密钥（绝不入库；模板 .env.example 保留）
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# 本机个人环境
+.claude/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 运行时瞬态产物（黑板日志，每次运行再生）
+logs/
+
+# OS 垃圾
+Thumbs.db
+desktop.ini
+.DS_Store

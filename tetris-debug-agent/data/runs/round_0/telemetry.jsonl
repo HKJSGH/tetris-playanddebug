@@ -1,0 +1,29 @@
+{"event": "round_start", "active_bugs": []}
+{"event": "spawn", "piece": "J", "cr": [6, 0]}
+{"event": "fall", "cr": [6, 1]}
+{"event": "fall", "cr": [6, 2]}
+{"event": "fall", "cr": [6, 3]}
+{"event": "fall", "cr": [6, 4]}
+{"event": "fall", "cr": [6, 5]}
+{"event": "fall", "cr": [6, 6]}
+{"event": "fall", "cr": [6, 7]}
+{"event": "fall", "cr": [6, 8]}
+{"event": "fall", "cr": [6, 9]}
+{"event": "fall", "cr": [6, 10]}
+{"event": "fall", "cr": [6, 11]}
+{"event": "fall", "cr": [6, 12]}
+{"event": "fall", "cr": [6, 13]}
+{"event": "fall", "cr": [6, 14]}
+{"event": "fall", "cr": [6, 15]}
+{"event": "fall", "cr": [6, 16]}
+{"event": "fall", "cr": [6, 17]}
+{"event": "fall", "cr": [6, 18]}
+{"event": "fall", "cr": [6, 19]}
+{"event": "lock", "piece": "J", "cr": [6, 19]}
+{"event": "spawn", "piece": "O", "cr": [6, 0]}
+{"event": "fall", "cr": [6, 1]}
+{"event": "fall", "cr": [6, 2]}
+{"event": "fall", "cr": [6, 3]}
+{"event": "fall", "cr": [6, 4]}
+{"event": "fall", "cr": [6, 5]}
+{"event": "pause", "success": true}

@@ -1,0 +1,9 @@
+# 密钥（绝不入库）
+.env
+.env.local
+.env.*.local
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/

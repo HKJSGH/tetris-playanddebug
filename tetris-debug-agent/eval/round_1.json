@@ -1,0 +1,109 @@
+{
+  "round_id": 1,
+  "timestamp": "2026-09-16 00:42:23",
+  "mode": "llm",
+  "models": {
+    "vision": "qwen/qwen3-vl-235b-a22b-instruct",
+    "text": "deepseek/deepseek-chat"
+  },
+  "input": {
+    "n_events": 381,
+    "n_screenshots": 0,
+    "tickets": [
+      "S0000009"
+    ],
+    "outcome": "manual_restart"
+  },
+  "tokens": {
+    "n_llm_calls": 10,
+    "prompt_tokens": 17580,
+    "completion_tokens": 2456,
+    "by_agent": {
+      "ingest": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      },
+      "feedback": {
+        "n_calls": 1,
+        "prompt_tokens": 262,
+        "completion_tokens": 261
+      },
+      "vision": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      },
+      "diagnostician": {
+        "n_calls": 1,
+        "prompt_tokens": 1887,
+        "completion_tokens": 467
+      },
+      "patcher": {
+        "n_calls": 8,
+        "prompt_tokens": 15431,
+        "completion_tokens": 1728
+      },
+      "tester": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      }
+    }
+  },
+  "n_graph_steps": 23,
+  "duration_sec": 215.569,
+  "hypotheses": [
+    {
+      "rank": 1,
+      "phenomenon_id": "PH-01",
+      "confidence": 0.9,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 2,
+      "phenomenon_id": "PH-02",
+      "confidence": 0.85,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 3,
+      "phenomenon_id": "PH-05",
+      "confidence": 0.8,
+      "source": "llm",
+      "outcome": "fixed",
+      "attempts": 1
+    },
+    {
+      "rank": 4,
+      "phenomenon_id": "PH-07",
+      "confidence": 0.75,
+      "source": "llm",
+      "outcome": "deferred",
+      "attempts": 0
+    },
+    {
+      "rank": 5,
+      "phenomenon_id": "PH-09",
+      "confidence": 0.7,
+      "source": "llm",
+      "outcome": "deferred",
+      "attempts": 0
+    }
+  ],
+  "hit_summary": {
+    "proposed": 5,
+    "confirmed": 1,
+    "false_positive": 2
+  },
+  "regressions": 0,
+  "bonus_findings": [],
+  "fixes_applied": 1,
+  "cumulative_fixed": 1,
+  "status": "open",
+  "errors": []
+}

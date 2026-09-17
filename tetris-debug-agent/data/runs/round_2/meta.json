@@ -1,0 +1,13 @@
+{
+  "round_id": 2,
+  "seed": 42,
+  "active_bugs": [],
+  "tickets": [
+    "S0000007"
+  ],
+  "outcome": "spawn_collision",
+  "score": 0,
+  "lines_cleared_total": 0,
+  "duration_sec": 11.365,
+  "version": "0.1.0"
+}

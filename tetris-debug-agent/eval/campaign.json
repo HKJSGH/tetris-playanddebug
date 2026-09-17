@@ -1,0 +1,26 @@
+[
+  {
+    "round_id": 2,
+    "mode": "llm",
+    "fixes_applied": 0,
+    "cumulative_fixed": 1,
+    "status": "open",
+    "n_llm_calls": 3,
+    "prompt_tokens": 9121,
+    "completion_tokens": 131,
+    "n_graph_steps": 6,
+    "duration_sec": 30.549
+  },
+  {
+    "round_id": 3,
+    "mode": "llm",
+    "fixes_applied": 0,
+    "cumulative_fixed": 1,
+    "status": "open",
+    "n_llm_calls": 6,
+    "prompt_tokens": 12722,
+    "completion_tokens": 784,
+    "n_graph_steps": 13,
+    "duration_sec": 59.149
+  }
+]

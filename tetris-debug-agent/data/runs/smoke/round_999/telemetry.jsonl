@@ -1,0 +1,45 @@
+{"event": "round_start", "active_bugs": []}
+{"event": "spawn", "piece": "J", "cr": [6, 0]}
+{"event": "fall", "cr": [6, 1]}
+{"event": "fall", "cr": [6, 2]}
+{"event": "fall", "cr": [6, 3]}
+{"event": "fall", "cr": [6, 4]}
+{"event": "fall", "cr": [6, 5]}
+{"event": "move", "action": "left", "cr": [5, 5]}
+{"event": "fall", "cr": [5, 6]}
+{"event": "fall", "cr": [5, 7]}
+{"event": "fall", "cr": [5, 8]}
+{"event": "fall", "cr": [5, 9]}
+{"event": "fall", "cr": [5, 10]}
+{"event": "fall", "cr": [5, 11]}
+{"event": "fall", "cr": [5, 12]}
+{"event": "rotate", "cr": [5, 12]}
+{"event": "fall", "cr": [5, 13]}
+{"event": "fall", "cr": [5, 14]}
+{"event": "fall", "cr": [5, 15]}
+{"event": "fall", "cr": [5, 16]}
+{"event": "fall", "cr": [5, 17]}
+{"event": "fall", "cr": [5, 18]}
+{"event": "lock", "piece": "J", "cr": [5, 18]}
+{"event": "spawn", "piece": "O", "cr": [6, 0]}
+{"event": "move", "action": "right", "cr": [7, 0]}
+{"event": "fall", "cr": [7, 1]}
+{"event": "fall", "cr": [7, 2]}
+{"event": "fall", "cr": [7, 3]}
+{"event": "fall", "cr": [7, 4]}
+{"event": "fall", "cr": [7, 5]}
+{"event": "fall", "cr": [7, 6]}
+{"event": "fall", "cr": [7, 7]}
+{"event": "fall", "cr": [7, 8]}
+{"event": "fall", "cr": [7, 9]}
+{"event": "fall", "cr": [7, 10]}
+{"event": "fall", "cr": [7, 11]}
+{"event": "fall", "cr": [7, 12]}
+{"event": "fall", "cr": [7, 13]}
+{"event": "fall", "cr": [7, 14]}
+{"event": "fall", "cr": [7, 15]}
+{"event": "fall", "cr": [7, 16]}
+{"event": "fall", "cr": [7, 17]}
+{"event": "fall", "cr": [7, 18]}
+{"event": "fall", "cr": [7, 19]}
+{"event": "game_over", "outcome": "smoke_test", "score": 0}
