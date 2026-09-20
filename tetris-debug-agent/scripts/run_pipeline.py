@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -25,6 +26,44 @@ from agent.state import merge_tokens  # noqa: E402
 
 EVAL_DIR = SANDBOX_ROOT / "eval"
 LOGS_DIR = SANDBOX_ROOT / "logs"
+FIXES_PATH = SANDBOX_ROOT / "data" / "fixes.json"
+GAME_FILE = SANDBOX_ROOT / "game" / "tetris_buggy.py"
+
+
+def _read_fixed() -> list[dict]:
+    if FIXES_PATH.exists():
+        return json.loads(FIXES_PATH.read_text(encoding="utf-8")).get("fixed_phenomena", [])
+    return []
+
+
+def _commit_fixes(before_ph: set[str], round_id: int, mode: str) -> None:
+    """本局产生新修复时，把 game/tetris_buggy.py 提交为一个修复快照。
+
+    失败只警告不中断（评估与 fixes.json 已落盘，提交是增量留痕）。
+    """
+    new = [f for f in _read_fixed() if f["phenomenon_id"] not in before_ph]
+    if not new:
+        return
+    try:
+        diff = subprocess.run(
+            ["git", "diff", "--quiet", "--", str(GAME_FILE)],
+            cwd=SANDBOX_ROOT, capture_output=True,
+        )
+        if diff.returncode == 0:
+            print("  (git) game/tetris_buggy.py 无变更，跳过提交")
+            return
+        ph_ids = ",".join(f["phenomenon_id"] for f in new)
+        body = "\n".join(
+            f"- {f['phenomenon_id']}: suspect={f.get('suspect_function') or '?'}, "
+            f"attempts={f.get('attempts_used', '?')}"
+            for f in new
+        )
+        msg = f"fix({ph_ids}): agent 修复 {len(new)} 项 (round {round_id}, mode={mode})\n\n{body}"
+        subprocess.run(["git", "add", str(GAME_FILE)], cwd=SANDBOX_ROOT, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", msg], cwd=SANDBOX_ROOT, check=True, capture_output=True)
+        print(f"  (git) 已提交修复快照: fix({ph_ids}) round {round_id}")
+    except Exception as e:  # noqa: BLE001
+        print(f"  (git) 提交失败（不影响本局结果）: {e!r:.120}")
 
 
 def _trunc(v, n: int = 200) -> str:
@@ -150,6 +189,8 @@ def main() -> int:
     parser.add_argument("--campaign", action="store_true")
     parser.add_argument("--rounds", type=int, default=20)
     parser.add_argument("--replay", action="store_true", help="忽略已存在的 eval 记录，强制重跑")
+    parser.add_argument("--commit", action="store_true",
+                        help="每局产生新修复后，自动 git commit game/tetris_buggy.py 作为修复快照")
     parser.add_argument("--verbose", action="store_true", help="控制台逐节点打印黑板流（日志文件不受影响）")
     args = parser.parse_args()
 
@@ -158,10 +199,13 @@ def main() -> int:
     if not args.campaign:
         if args.round is None:
             parser.error("单局模式需要 --round N")
+        before_ph = {f["phenomenon_id"] for f in _read_fixed()}
         final, log_path = run_round(app, args.round, args.mode, args.max_patch_attempts,
                                     args.max_hypotheses, args.verbose)
         print_summary(final)
         print(f"黑板日志: {log_path}")
+        if args.commit:
+            _commit_fixes(before_ph, args.round, args.mode)
         return 0
 
     # campaign：从 round_1 起逐局；eval 已存在的局跳过（续跑语义），fixes.json
@@ -175,10 +219,13 @@ def main() -> int:
         if (EVAL_DIR / f"round_{rid}.json").exists() and not args.replay:
             print(f"round_{rid} 已有 eval 记录，跳过（--replay 可重跑）")
             continue
+        before_ph = {f["phenomenon_id"] for f in _read_fixed()}
         final, log_path = run_round(app, rid, args.mode, args.max_patch_attempts,
                                     args.max_hypotheses, args.verbose)
         print_summary(final)
         print(f"黑板日志: {log_path}")
+        if args.commit:
+            _commit_fixes(before_ph, rid, args.mode)
         row = _eval_row(rid)
         summary.append({
             "round_id": rid,
