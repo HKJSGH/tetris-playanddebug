@@ -316,7 +316,7 @@ class TetrisGame:
             if r >= 0 and self.block_list[r][c]:
                 return
             h = 0
-            for ri in range(r + 1, r + 1):
+            for ri in range(r + 1, R):
                 if self.block_list[ri][c]:
                     break
                 h += 1
