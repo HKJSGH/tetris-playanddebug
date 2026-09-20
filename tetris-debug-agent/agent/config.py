@@ -53,6 +53,6 @@ TEXT_BASE_URL = os.environ.get("TEXT_BASE_URL", "https://openrouter.ai/api/v1")
 TEXT_API_KEY_ENV = os.environ.get("TEXT_API_KEY_ENV", "DEEPSEEK_API_KEY")
 
 # ---- pipeline 参数 ----------------------------------------------------------
-MAX_PATCH_ATTEMPTS = 3      # 单假设补丁重试上限
+MAX_PATCH_ATTEMPTS = 8      # 单假设补丁重试上限
 MAX_HYPOTHESES = 5          # 每局最多推进的假设数
-PYTEST_TIMEOUT = 300        # tester 跑 pytest 超时（秒）
+PYTEST_TIMEOUT = 600        # tester 跑 pytest 超时（秒）

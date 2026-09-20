@@ -20,7 +20,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agent.config import RUNS_ROOT, SANDBOX_ROOT  # noqa: E402
+from agent.config import (  # noqa: E402
+    MAX_HYPOTHESES,
+    MAX_PATCH_ATTEMPTS,
+    RUNS_ROOT,
+    SANDBOX_ROOT,
+)
 from agent.graph import build_graph  # noqa: E402
 from agent.state import merge_tokens  # noqa: E402
 
@@ -34,6 +39,67 @@ def _read_fixed() -> list[dict]:
     if FIXES_PATH.exists():
         return json.loads(FIXES_PATH.read_text(encoding="utf-8")).get("fixed_phenomena", [])
     return []
+
+
+def _load_symptoms() -> dict[str, str]:
+    """catalog.yaml 现象号 → 症状描述（总结展示用；catalog 是 pipeline 合法输入）。"""
+    p = SANDBOX_ROOT / "data" / "catalog" / "catalog.yaml"
+    if not p.exists():
+        return {}
+    out: dict[str, str] = {}
+    cur: str | None = None
+    for line in p.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if s.startswith("- id: "):
+            cur = s.removeprefix("- id: ").strip()
+        elif s.startswith("symptom:") and cur:
+            out[cur] = s.removeprefix("symptom:").strip()
+    return out
+
+
+def print_fix_report(before_ph: set[str], session_rounds: list[int]) -> None:
+    """debug 收尾总结：只写现象描述，不暴露 PH/Bug 编号——真实环境下 agent
+    不知道现象对应哪个预设 bug，编号仅作内部 key 使用。"""
+    sym = _load_symptoms()
+
+    def desc(ph: str) -> str:
+        return sym.get(ph, f"（未登记的现象 {ph}）")
+
+    fx = json.loads(FIXES_PATH.read_text(encoding="utf-8")) if FIXES_PATH.exists() else {}
+    fixed = fx.get("fixed_phenomena", [])
+    fixed_ids = {f["phenomenon_id"] for f in fixed}
+    session_fixed = [f["phenomenon_id"] for f in fixed if f["phenomenon_id"] not in before_ph]
+
+    seen_attempts: dict[str, int] = {}
+    for r in fx.get("rejected", []):
+        if r.get("round_id") in session_rounds:
+            ph = r["phenomenon_id"]
+            seen_attempts[ph] = max(seen_attempts.get(ph, 0), r.get("attempts", 0) or 0)
+
+    unresolved = [ph for ph in sym if ph not in fixed_ids and ph not in seen_attempts]
+
+    print("=" * 60)
+    print("本次 debug 总结")
+    if session_fixed:
+        print("✔ 本次确认存在并已修复的问题：")
+        for ph in session_fixed:
+            print(f"  - {desc(ph)}")
+    else:
+        print("✔ 本次确认存在并已修复的问题：无")
+    if before_ph:
+        print("↩ 此前已修复（本次无需重复处理）的问题：")
+        for ph in sorted(before_ph):
+            print(f"  - {desc(ph)}")
+    if seen_attempts:
+        print("✘ 本次已尝试修复但未通过测试验证（证据不足或补丁未达标）的问题：")
+        for ph, n in seen_attempts.items():
+            print(f"  - {desc(ph)}（尝试 {n} 次补丁）")
+    if unresolved:
+        print("？暂未找到充分证据、本次未能定位修复的问题：")
+        for ph in unresolved:
+            print(f"  - {desc(ph)}")
+    print(f"累计已修复 {len(fixed_ids)} 项 bug")
+    print("=" * 60)
 
 
 def _commit_fixes(before_ph: set[str], round_id: int, mode: str) -> None:
@@ -184,8 +250,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--round", type=int)
     parser.add_argument("--mode", choices=["mock", "llm"], default="mock")
-    parser.add_argument("--max-patch-attempts", type=int, default=3)
-    parser.add_argument("--max-hypotheses", type=int, default=5)
+    parser.add_argument("--max-patch-attempts", type=int, default=MAX_PATCH_ATTEMPTS,
+                        help="单假设补丁重试上限（缺省读 agent/config.py）")
+    parser.add_argument("--max-hypotheses", type=int, default=MAX_HYPOTHESES,
+                        help="每局最多推进的假设数（缺省读 agent/config.py）")
     parser.add_argument("--campaign", action="store_true")
     parser.add_argument("--rounds", type=int, default=20)
     parser.add_argument("--replay", action="store_true", help="忽略已存在的 eval 记录，强制重跑")
@@ -206,11 +274,14 @@ def main() -> int:
         print(f"黑板日志: {log_path}")
         if args.commit:
             _commit_fixes(before_ph, args.round, args.mode)
+        print_fix_report(before_ph, [args.round])
         return 0
 
     # campaign：从 round_1 起逐局；eval 已存在的局跳过（续跑语义），fixes.json
     # status==converged 或局数用尽/无数据即停
     summary = []
+    session_rounds: list[int] = []
+    before_all = {f["phenomenon_id"] for f in _read_fixed()}
     for rid in range(1, args.rounds + 1):
         run_dir = RUNS_ROOT / f"round_{rid}"
         if not run_dir.exists():
@@ -220,6 +291,7 @@ def main() -> int:
             print(f"round_{rid} 已有 eval 记录，跳过（--replay 可重跑）")
             continue
         before_ph = {f["phenomenon_id"] for f in _read_fixed()}
+        session_rounds.append(rid)
         final, log_path = run_round(app, rid, args.mode, args.max_patch_attempts,
                                     args.max_hypotheses, args.verbose)
         print_summary(final)
@@ -243,11 +315,13 @@ def main() -> int:
         if fixes_path.exists() and json.loads(fixes_path.read_text(encoding="utf-8")).get("status") == "converged":
             print(f"第 {rid} 局达成收敛")
             break
-    EVAL_DIR.mkdir(parents=True, exist_ok=True)
-    (EVAL_DIR / "campaign.json").write_text(
-        json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-    print(f"campaign 汇总 → {EVAL_DIR / 'campaign.json'}")
+    print_fix_report(before_all, session_rounds)
+    if summary:
+        EVAL_DIR.mkdir(parents=True, exist_ok=True)
+        (EVAL_DIR / "campaign.json").write_text(
+            json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        print(f"campaign 汇总 → {EVAL_DIR / 'campaign.json'}")
     return 0
 
 
