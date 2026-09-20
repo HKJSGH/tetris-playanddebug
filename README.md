@@ -88,15 +88,17 @@ cp .env.example .env.local        # 填入 OpenRouter API key（该文件已被 
 **1. 玩家游玩**（自动采集埋点/报错；异常可点游戏内「反馈」按钮提交文字与截图）：
 
 ```bash
-python scripts/play.py --round 4 --seed 42   # 局号决定数据目录 data/runs/round_4
+python scripts/play.py   # 局号自动递增；关闭游戏窗口后自动启动 debug 并打印修复总结
 ```
 
-**2. 运行 Agent**（推荐每玩几局跑一次，已有评估的局自动跳过、可续跑）：
+**2. 运行 Agent**（play.py 已自动串联上述流程；也可手动运行，已有评估的局自动跳过、可续跑）：
 
 ```bash
 python scripts/run_pipeline.py --campaign --mode llm --verbose
 python scripts/run_pipeline.py --round 5 --mode llm   # 也可单局运行
 ```
+
+debug 结束打印玩家视角修复总结（不带内部编号）：本次确认修复 / 此前已修复 / 尝试未通过 / 证据不足四组。
 
 **3. 查看评估**（每局汇总 + ASCII 收敛曲线 + token 成本账）：
 
