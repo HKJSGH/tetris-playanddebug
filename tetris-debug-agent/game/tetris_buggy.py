@@ -40,7 +40,7 @@ SHAPES = {
 
 # 各方块颜色（经典配色：I=青 Z=红 O=黄 T=紫 S=绿 J=蓝 L=橙）
 COLORS = {
-    "O": "yellow", "S": "green", "T": "purple", "I": "red",
+    "O": "yellow", "S": "green", "T": "purple", "I": "Cyan",
     "L": "orange", "J": "blue", "Z": "red",
 }
 
