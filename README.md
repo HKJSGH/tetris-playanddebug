@@ -114,7 +114,12 @@ python ../tetris-game/scripts/score_eval.py --out data/eval_report.md
 | 2 | clean 对照局 | 0 条 | **零误报**，不重提已修复/已否决现象 | 9.1k/0.1k | 6 |
 | 3 | 暂停异常局 | 1 条（PH-09, conf 0.9） | 3 次补丁未过测试 → 正确否决并记录 | 12.7k/0.8k | 13 |
 
+## 游戏结束后DeBug示例
+- <img width="1900" height="674" alt="image" src="https://github.com/user-attachments/assets/a5608bec-ca62-4f5b-ad20-70cff561a31b" />
+
 ## 模型
 
 - 视觉：`qwen/qwen3-vl-235b-a22b-instruct`（OpenRouter）
 - 文本：`deepseek/deepseek-chat`（OpenRouter）
+
+
