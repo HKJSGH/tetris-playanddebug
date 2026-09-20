@@ -506,10 +506,7 @@ class TetrisGame:
                 self.current_block = None
                 self._check_and_clear()
 
-        if self.current_block is not None and self.current_block["kind"] == "O":
-            self._schedule(FPS // 5)
-        else:
-            self._schedule(FPS)
+        self._schedule(FPS)
 
     # ---- 结束流程 -------------------------------------------------------
 
