@@ -1,0 +1,14 @@
+{
+  "round_id": 9,
+  "seed": 42,
+  "active_bugs": [],
+  "tickets": [
+    "S0000015",
+    "S0000016"
+  ],
+  "outcome": "window_closed",
+  "score": 0,
+  "lines_cleared_total": 2,
+  "duration_sec": 115.081,
+  "version": "0.1.0"
+}

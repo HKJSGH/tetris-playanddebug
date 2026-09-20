@@ -1,0 +1,85 @@
+{
+  "round_id": 6,
+  "timestamp": "2026-09-20 22:24:14",
+  "mode": "llm",
+  "models": {
+    "vision": "qwen/qwen3-vl-235b-a22b-instruct",
+    "text": "deepseek/deepseek-chat"
+  },
+  "input": {
+    "n_events": 41,
+    "n_screenshots": 0,
+    "tickets": [],
+    "outcome": "window_closed"
+  },
+  "tokens": {
+    "n_llm_calls": 8,
+    "prompt_tokens": 8719,
+    "completion_tokens": 1165,
+    "by_agent": {
+      "ingest": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      },
+      "feedback": {
+        "n_calls": 1,
+        "prompt_tokens": 188,
+        "completion_tokens": 153
+      },
+      "vision": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      },
+      "diagnostician": {
+        "n_calls": 1,
+        "prompt_tokens": 1774,
+        "completion_tokens": 284
+      },
+      "patcher": {
+        "n_calls": 6,
+        "prompt_tokens": 6757,
+        "completion_tokens": 728
+      },
+      "tester": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      }
+    }
+  },
+  "n_graph_steps": 17,
+  "duration_sec": 64.839,
+  "hypotheses": [
+    {
+      "rank": 1,
+      "phenomenon_id": "PH-01",
+      "confidence": 0.9,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 2,
+      "phenomenon_id": "PH-09",
+      "confidence": 0.8,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    }
+  ],
+  "hit_summary": {
+    "proposed": 2,
+    "confirmed": 0,
+    "false_positive": 2
+  },
+  "regressions": 0,
+  "bonus_findings": [],
+  "fixes_applied": 0,
+  "cumulative_fixed": 3,
+  "status": "open",
+  "errors": [
+    "diagnostician: 丢弃假设[1] PH-07 已修复（勿重提）"
+  ]
+}

@@ -1,0 +1,126 @@
+{
+  "round_id": 4,
+  "timestamp": "2026-09-20 22:21:47",
+  "mode": "llm",
+  "models": {
+    "vision": "qwen/qwen3-vl-235b-a22b-instruct",
+    "text": "deepseek/deepseek-chat"
+  },
+  "input": {
+    "n_events": 475,
+    "n_screenshots": 3,
+    "tickets": [
+      "S0000010",
+      "S0000011"
+    ],
+    "outcome": "manual_restart"
+  },
+  "tokens": {
+    "n_llm_calls": 7,
+    "prompt_tokens": 6082,
+    "completion_tokens": 1551,
+    "by_agent": {
+      "ingest": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      },
+      "feedback": {
+        "n_calls": 1,
+        "prompt_tokens": 330,
+        "completion_tokens": 355
+      },
+      "vision": {
+        "n_calls": 3,
+        "prompt_tokens": 1233,
+        "completion_tokens": 69
+      },
+      "diagnostician": {
+        "n_calls": 1,
+        "prompt_tokens": 2218,
+        "completion_tokens": 685
+      },
+      "patcher": {
+        "n_calls": 2,
+        "prompt_tokens": 2301,
+        "completion_tokens": 442
+      },
+      "tester": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      }
+    }
+  },
+  "n_graph_steps": 8,
+  "duration_sec": 73.087,
+  "hypotheses": [
+    {
+      "rank": 1,
+      "phenomenon_id": "PH-07",
+      "confidence": 0.9,
+      "source": "llm",
+      "outcome": "fixed",
+      "attempts": 2
+    },
+    {
+      "rank": 2,
+      "phenomenon_id": "PH-08",
+      "confidence": 0.85,
+      "source": "llm",
+      "outcome": "deferred",
+      "attempts": 0
+    },
+    {
+      "rank": 3,
+      "phenomenon_id": "PH-10",
+      "confidence": 0.8,
+      "source": "llm",
+      "outcome": "deferred",
+      "attempts": 0
+    },
+    {
+      "rank": 4,
+      "phenomenon_id": "PH-03",
+      "confidence": 0.75,
+      "source": "llm",
+      "outcome": "deferred",
+      "attempts": 0
+    },
+    {
+      "rank": 5,
+      "phenomenon_id": "PH-02",
+      "confidence": 0.7,
+      "source": "llm",
+      "outcome": "deferred",
+      "attempts": 0
+    },
+    {
+      "rank": 6,
+      "phenomenon_id": "PH-09",
+      "confidence": 0.65,
+      "source": "llm",
+      "outcome": "deferred",
+      "attempts": 0
+    },
+    {
+      "rank": 7,
+      "phenomenon_id": "PH-01",
+      "confidence": 0.6,
+      "source": "llm",
+      "outcome": "deferred",
+      "attempts": 0
+    }
+  ],
+  "hit_summary": {
+    "proposed": 7,
+    "confirmed": 1,
+    "false_positive": 0
+  },
+  "regressions": 0,
+  "bonus_findings": [],
+  "fixes_applied": 1,
+  "cumulative_fixed": 2,
+  "status": "open",
+  "errors": []
+}

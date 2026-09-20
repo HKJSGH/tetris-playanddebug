@@ -1,0 +1,126 @@
+{
+  "round_id": 14,
+  "timestamp": "2026-09-20 23:47:10",
+  "mode": "llm",
+  "models": {
+    "vision": "qwen/qwen3-vl-235b-a22b-instruct",
+    "text": "deepseek/deepseek-chat"
+  },
+  "input": {
+    "n_events": 374,
+    "n_screenshots": 2,
+    "tickets": [
+      "S0000020",
+      "S0000021"
+    ],
+    "outcome": "window_closed"
+  },
+  "tokens": {
+    "n_llm_calls": 17,
+    "prompt_tokens": 17315,
+    "completion_tokens": 3467,
+    "by_agent": {
+      "ingest": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      },
+      "feedback": {
+        "n_calls": 1,
+        "prompt_tokens": 190,
+        "completion_tokens": 143
+      },
+      "vision": {
+        "n_calls": 2,
+        "prompt_tokens": 870,
+        "completion_tokens": 46
+      },
+      "diagnostician": {
+        "n_calls": 1,
+        "prompt_tokens": 1808,
+        "completion_tokens": 668
+      },
+      "patcher": {
+        "n_calls": 13,
+        "prompt_tokens": 14447,
+        "completion_tokens": 2610
+      },
+      "tester": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      }
+    }
+  },
+  "n_graph_steps": 34,
+  "duration_sec": 191.727,
+  "hypotheses": [
+    {
+      "rank": 1,
+      "phenomenon_id": "PH-02",
+      "confidence": 0.9,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 2,
+      "phenomenon_id": "PH-03",
+      "confidence": 0.8,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 3,
+      "phenomenon_id": "PH-04",
+      "confidence": 0.7,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 4,
+      "phenomenon_id": "PH-08",
+      "confidence": 0.7,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 5,
+      "phenomenon_id": "PH-06",
+      "confidence": 0.6,
+      "source": "llm",
+      "outcome": "fixed",
+      "attempts": 1
+    },
+    {
+      "rank": 6,
+      "phenomenon_id": "PH-11",
+      "confidence": 0.6,
+      "source": "llm",
+      "outcome": "deferred",
+      "attempts": 0
+    },
+    {
+      "rank": 7,
+      "phenomenon_id": "PH-12",
+      "confidence": 0.5,
+      "source": "llm",
+      "outcome": "deferred",
+      "attempts": 0
+    }
+  ],
+  "hit_summary": {
+    "proposed": 7,
+    "confirmed": 1,
+    "false_positive": 4
+  },
+  "regressions": 0,
+  "bonus_findings": [],
+  "fixes_applied": 1,
+  "cumulative_fixed": 6,
+  "status": "open",
+  "errors": []
+}

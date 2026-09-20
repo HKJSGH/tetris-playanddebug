@@ -19,6 +19,120 @@
         "skipped": 11
       },
       "attempts_used": 1
+    },
+    {
+      "phenomenon_id": "PH-07",
+      "suspect_function": "_generate_new_block",
+      "hypothesis": "预览方块与实际掉落方块不一致，可能是生成新方块时未正确更新预览方块。",
+      "patch": {
+        "blocks": [
+          {
+            "search": "    def _generate_new_block(self) -> dict:\n        \"\"\"生成下一个方块：取 next_kind，滚动预览，记录 spawn 事件。\"\"\"\n        kind = self.next_kind\n        self._draw_preview()\n        self.next_kind = self._pick_kind()\n        block = {\"kind\": kind, \"cell_list\": SHAPES[kind], \"cr\": [C // 2, 0]}\n        self.rec.record({\"event\": \"spawn\", \"piece\": kind, \"cr\": block[\"cr\"]})\n        return block",
+            "replace": "    def _generate_new_block(self) -> dict:\n        \"\"\"生成下一个方块：取 next_kind，滚动预览，记录 spawn 事件。\"\"\"\n        kind = self.next_kind\n        self.next_kind = self._pick_kind()\n        self._draw_preview()\n        block = {\"kind\": kind, \"cell_list\": SHAPES[kind], \"cr\": [C // 2, 0]}\n        self.rec.record({\"event\": \"spawn\", \"piece\": kind, \"cr\": block[\"cr\"]})\n        return block"
+          }
+        ],
+        "note": "交换 _draw_preview() 和 self.next_kind = self._pick_kind() 的顺序，确保预览绘制时使用的是新生成的 next_kind 而非当前 kind"
+      },
+      "tests_passed": {
+        "passed": 4,
+        "skipped": 10
+      },
+      "attempts_used": 2
+    },
+    {
+      "phenomenon_id": "PH-10",
+      "suspect_function": "_on_land",
+      "hypothesis": "硬降失效，可能是硬降事件处理函数未能正确计算下落距离。",
+      "patch": {
+        "blocks": [
+          {
+            "search": "for ri in range(r + 1, r + 1):",
+            "replace": "for ri in range(r + 1, R):"
+          }
+        ],
+        "note": "修复硬降距离计算错误，range 结束值应为 R 而不是 r+1"
+      },
+      "tests_passed": {
+        "passed": 4,
+        "skipped": 9
+      },
+      "attempts_used": 1
+    },
+    {
+      "phenomenon_id": "PH-01",
+      "suspect_function": "",
+      "hypothesis": "探针信号直接映射（纯代码兜底）",
+      "patch": {
+        "blocks": [
+          {
+            "search": "        if self.current_block is not None and self.current_block[\"kind\"] == \"O\":\n            self._schedule(FPS // 5)\n        else:\n            self._schedule(FPS)",
+            "replace": "        self._schedule(FPS)"
+          }
+        ],
+        "note": "修复 O 块下落速度异常快的问题，移除对 O 块的特殊处理，统一使用 FPS 作为所有方块的下落间隔"
+      },
+      "tests_passed": {
+        "passed": 6,
+        "skipped": 8
+      },
+      "attempts_used": 1
+    },
+    {
+      "phenomenon_id": "PH-09",
+      "suspect_function": "",
+      "hypothesis": "探针信号直接映射（纯代码兜底）",
+      "patch": {
+        "blocks": [
+          {
+            "search": "    def _resume(self, event=None) -> None:\n        \"\"\"从暂停恢复：关闭面板、重启主循环。\"\"\"\n        if self.paused:\n            return\n        if self._pause_panel is not None:\n            try:\n                self._pause_panel.destroy()\n            except Exception:\n                pass\n            self._pause_panel = None\n        self.paused = False\n        self.rec.record({\"event\": \"resume\", \"success\": True})\n        self._schedule(FPS)\n",
+            "replace": "    def _resume(self, event=None) -> None:\n        \"\"\"从暂停恢复：关闭面板、重启主循环。\"\"\"\n        if not self.paused:\n            return\n        if self._pause_panel is not None:\n            try:\n                self._pause_panel.destroy()\n            except Exception:\n                pass\n            self._pause_panel = None\n        self.paused = False\n        self.rec.record({\"event\": \"resume\", \"success\": True})\n        self._schedule(FPS)\n"
+          }
+        ],
+        "note": "修复 _resume 方法中的逻辑错误：原代码在 paused 为 True 时直接返回，导致无法恢复游戏。将条件从 if self.paused 改为 if not self.paused，确保在暂停状态下执行恢复逻辑。"
+      },
+      "tests_passed": {
+        "passed": 7,
+        "skipped": 7
+      },
+      "attempts_used": 2
+    },
+    {
+      "phenomenon_id": "PH-06",
+      "suspect_function": "_color_for",
+      "hypothesis": "I 块颜色错乱，可能是颜色分配逻辑错误，_color_for 函数负责为方块分配颜色",
+      "patch": {
+        "blocks": [
+          {
+            "search": "\"O\": \"yellow\", \"S\": \"green\", \"T\": \"purple\", \"I\": \"red\",\n    \"L\": \"orange\", \"J\": \"blue\", \"Z\": \"red\",",
+            "replace": "\"O\": \"yellow\", \"S\": \"green\", \"T\": \"purple\", \"I\": \"Cyan\",\n    \"L\": \"orange\", \"J\": \"blue\", \"Z\": \"red\","
+          }
+        ],
+        "note": "将 COLORS 中 I 块颜色从 red 改为 Cyan，使其与 PREVIEW_COLORS 保持一致"
+      },
+      "tests_passed": {
+        "passed": 8,
+        "skipped": 6
+      },
+      "attempts_used": 1
+    },
+    {
+      "phenomenon_id": "PH-02",
+      "suspect_function": "_on_rotate",
+      "hypothesis": "旋转事件后，方块与已占格重叠，表明旋转时未正确检查碰撞。",
+      "patch": {
+        "blocks": [
+          {
+            "search": "        if self._check_move(block):\n            self.canvas.delete(\"falling\")\n            self._draw_cells(block[\"cr\"][0], block[\"cr\"][1], rotate_list, self._color_for(block[\"kind\"]))\n            self.current_block = rotated\n            self.rec.record({\"event\": \"rotate\", \"cr\": block[\"cr\"]})",
+            "replace": "        if self._check_move(rotated):\n            self.canvas.delete(\"falling\")\n            self._draw_cells(block[\"cr\"][0], block[\"cr\"][1], rotate_list, self._color_for(block[\"kind\"]))\n            self.current_block = rotated\n            self.rec.record({\"event\": \"rotate\", \"cr\": block[\"cr\"]})"
+          }
+        ],
+        "note": "修复旋转碰撞检查错误，原代码检查的是旋转前的block而非旋转后的rotated"
+      },
+      "tests_passed": {
+        "passed": 9,
+        "skipped": 5
+      },
+      "attempts_used": 1
     }
   ],
   "rejected": [
@@ -42,21 +156,141 @@
       "attempts": 3,
       "last_error": "pytest failed=3: != {'events': [{'event': 'resume', 'success': True}]}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_after_pause - assert True...\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_is_noop_when_not_paused\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B09] - A...\n3 failed, 1 passed, 10 skipped in 0.25s\n",
       "round_id": 3
+    },
+    {
+      "phenomenon_id": "PH-01",
+      "suspect_function": "_schedule",
+      "attempts": 3,
+      "last_error": "pytest failed=2: ntical items, use -vv to show\nE         Differing items:\nE         {'schedule_trace': [200, 40]} != {'schedule_trace': [200, 200]}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B01.py::test_b01_o_piece_normal_fall_rate - asser...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B01] - A...\n2 failed, 3 passed, 9 skipped in 0.31s\n",
+      "round_id": 5
+    },
+    {
+      "phenomenon_id": "PH-09",
+      "suspect_function": "_on_pause",
+      "attempts": 3,
+      "last_error": "pytest failed=4: re diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_after_pause - assert True...\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_is_noop_when_not_paused\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B05] - _...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B09] - A...\n4 failed, 1 passed, 9 skipped in 0.36s\n",
+      "round_id": 5
+    },
+    {
+      "phenomenon_id": "PH-01",
+      "suspect_function": "_schedule",
+      "attempts": 3,
+      "last_error": "pytest failed=2:     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE       _tkinter.TclError: invalid command name \"tcl_findLibrary\"\n\nD:\\tools\\python\\Lib\\tkinter\\__init__.py:2346: TclError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B01.py::test_b01_o_piece_normal_fall_rate - asser...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B01] - _...\n2 failed, 4 passed, 8 skipped in 0.39s\n",
+      "round_id": 6
+    },
+    {
+      "phenomenon_id": "PH-09",
+      "suspect_function": "_on_pause",
+      "attempts": 3,
+      "last_error": "pytest failed=3:  != {'events': [{'event': 'resume', 'success': True}]}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_after_pause - assert True...\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_is_noop_when_not_paused\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B09] - A...\n3 failed, 3 passed, 8 skipped in 0.28s\n",
+      "round_id": 6
+    },
+    {
+      "phenomenon_id": "PH-09",
+      "suspect_function": "_on_pause",
+      "attempts": 3,
+      "last_error": "pytest failed=4: re diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_after_pause - assert True...\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_is_noop_when_not_paused\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B05] - _...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B09] - A...\n4 failed, 2 passed, 8 skipped in 0.35s\n",
+      "round_id": 7
+    },
+    {
+      "phenomenon_id": "PH-01",
+      "suspect_function": "_generate_new_block",
+      "attempts": 3,
+      "last_error": "pytest failed=2: ntical items, use -vv to show\nE         Differing items:\nE         {'schedule_trace': [200, 40]} != {'schedule_trace': [200, 200]}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B01.py::test_b01_o_piece_normal_fall_rate - asser...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B01] - A...\n2 failed, 4 passed, 8 skipped in 0.34s\n",
+      "round_id": 8
+    },
+    {
+      "phenomenon_id": "PH-09",
+      "suspect_function": "_on_pause",
+      "attempts": 3,
+      "last_error": "pytest failed=4: re diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_after_pause - assert True...\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_is_noop_when_not_paused\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B05] - _...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B09] - A...\n4 failed, 2 passed, 8 skipped in 0.37s\n",
+      "round_id": 8
+    },
+    {
+      "phenomenon_id": "PH-02",
+      "suspect_function": "_check_move",
+      "attempts": 3,
+      "last_error": "pytest failed=2: ': False, 'paused': False, 'score': 0, 'lines': 0, ...}}\nE         {'events': [{'event': 'rotate', 'cr': [5, 10]}]} != {'events': []}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B02.py::test_b02_rotation_rejected_when_colliding\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B02] - A...\n2 failed, 5 passed, 7 skipped in 0.33s\n",
+      "round_id": 10
+    },
+    {
+      "phenomenon_id": "PH-09",
+      "suspect_function": "_on_pause",
+      "attempts": 3,
+      "last_error": "pytest failed=4: re diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_after_pause - assert True...\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_is_noop_when_not_paused\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B01] - _...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B09] - A...\n4 failed, 3 passed, 7 skipped in 0.47s\n",
+      "round_id": 10
+    },
+    {
+      "phenomenon_id": "PH-04",
+      "suspect_function": "_finalize",
+      "attempts": 3,
+      "last_error": "pytest failed=2: se, 'paused': False, 'score': 0, 'lines': 0, ...}} != {'final': {'game_over': True, 'paused': False, 'score': 0, 'lines': 0, ...}}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B04.py::test_b04_game_over_when_spawn_blocked - a...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B04] - A...\n2 failed, 5 passed, 7 skipped in 0.32s\n",
+      "round_id": 10
+    },
+    {
+      "phenomenon_id": "PH-03",
+      "suspect_function": "_update_score_display",
+      "attempts": 3,
+      "last_error": "pytest failed=2: �ڱ��⡣\"\"\"\n>       self.score += self._lines_cleared * 100\n                      ^^^^^^^^^^^^^^^^^^^\nE       AttributeError: 'TetrisGame' object has no attribute '_lines_cleared'\n\ngame\\tetris_buggy.py:203: AttributeError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B03.py::test_b03_line_clear_adds_score - Attribut...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B03] - A...\n2 failed, 4 passed, 7 skipped in 0.34s\n",
+      "round_id": 10
+    },
+    {
+      "phenomenon_id": "PH-08",
+      "suspect_function": "_check_and_clear",
+      "attempts": 3,
+      "last_error": "pytest failed=1: al': {'game_over': False, 'paused': False, 'score': 20, 'lines': 2, ...}}\nE         {'events': [{'event': 'line_clear', 'count': 2, 'score': 0}]} != {'events': [{'event': 'line_clear', 'count': 2, 'score': 20}]}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B08] - A...\n1 failed, 6 passed, 7 skipped in 0.28s\n",
+      "round_id": 10
+    },
+    {
+      "phenomenon_id": "PH-09",
+      "suspect_function": "_on_pause",
+      "attempts": 3,
+      "last_error": "pytest failed=3:  False, 'paused': False, 'score': 0, 'lines': 0, ...}}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_after_pause - assert True...\nFAILED tests/test_bugs/test_B09.py::test_b09_resume_is_noop_when_not_paused\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B09] - A...\n3 failed, 4 passed, 7 skipped in 0.35s\n",
+      "round_id": 11
+    },
+    {
+      "phenomenon_id": "PH-02",
+      "suspect_function": "_check_move",
+      "attempts": 3,
+      "last_error": "块 1/1 的 SEARCH 命中 2 次（要求恰好 1 次），文件未改动",
+      "round_id": 13
+    },
+    {
+      "phenomenon_id": "PH-02",
+      "suspect_function": "_check_move",
+      "attempts": 3,
+      "last_error": "块 1/1 的 SEARCH 命中 2 次（要求恰好 1 次），文件未改动",
+      "round_id": 14
+    },
+    {
+      "phenomenon_id": "PH-03",
+      "suspect_function": "_update_score_display",
+      "attempts": 3,
+      "last_error": "pytest failed=2: ʾ�봰�ڱ��⡣\"\"\"\n>       self.score += self.lines_cleared * 100\n                      ^^^^^^^^^^^^^^^^^^\nE       AttributeError: 'TetrisGame' object has no attribute 'lines_cleared'\n\ngame\\tetris_buggy.py:203: AttributeError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B03.py::test_b03_line_clear_adds_score - Attribut...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B03] - A...\n2 failed, 5 passed, 6 skipped in 0.31s\n",
+      "round_id": 14
+    },
+    {
+      "phenomenon_id": "PH-04",
+      "suspect_function": "_finalize",
+      "attempts": 3,
+      "last_error": "pytest failed=2: se, 'paused': False, 'score': 0, 'lines': 0, ...}} != {'final': {'game_over': True, 'paused': False, 'score': 0, 'lines': 0, ...}}\nE         Use -v to get more diff\n\ntests\\golden\\test_golden_equiv.py:53: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_bugs/test_B04.py::test_b04_game_over_when_spawn_blocked - a...\nFAILED tests/golden/test_golden_equiv.py::test_golden_equivalence[SC_B04] - A...\n2 failed, 6 passed, 6 skipped in 0.32s\n",
+      "round_id": 14
+    },
+    {
+      "phenomenon_id": "PH-08",
+      "suspect_function": "_check_and_clear",
+      "attempts": 3,
+      "last_error": "块 1/1 的 SEARCH 命中 2 次（要求恰好 1 次），文件未改动",
+      "round_id": 14
     }
   ],
   "remaining": [
-    "PH-01",
-    "PH-02",
     "PH-03",
     "PH-04",
-    "PH-06",
-    "PH-07",
     "PH-08",
-    "PH-09",
-    "PH-10",
     "PH-11",
     "PH-12"
   ],
   "status": "open",
-  "updated_at": "2026-09-16 20:21:57"
+  "updated_at": "2026-09-20 23:56:54"
 }

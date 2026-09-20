@@ -1,0 +1,77 @@
+{
+  "round_id": 13,
+  "timestamp": "2026-09-20 23:26:33",
+  "mode": "llm",
+  "models": {
+    "vision": "qwen/qwen3-vl-235b-a22b-instruct",
+    "text": "deepseek/deepseek-chat"
+  },
+  "input": {
+    "n_events": 101,
+    "n_screenshots": 0,
+    "tickets": [],
+    "outcome": "window_closed"
+  },
+  "tokens": {
+    "n_llm_calls": 5,
+    "prompt_tokens": 5326,
+    "completion_tokens": 895,
+    "by_agent": {
+      "ingest": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      },
+      "feedback": {
+        "n_calls": 1,
+        "prompt_tokens": 185,
+        "completion_tokens": 140
+      },
+      "vision": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      },
+      "diagnostician": {
+        "n_calls": 1,
+        "prompt_tokens": 1747,
+        "completion_tokens": 213
+      },
+      "patcher": {
+        "n_calls": 3,
+        "prompt_tokens": 3394,
+        "completion_tokens": 542
+      },
+      "tester": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      }
+    }
+  },
+  "n_graph_steps": 10,
+  "duration_sec": 45.994,
+  "hypotheses": [
+    {
+      "rank": 1,
+      "phenomenon_id": "PH-02",
+      "confidence": 0.9,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    }
+  ],
+  "hit_summary": {
+    "proposed": 1,
+    "confirmed": 0,
+    "false_positive": 1
+  },
+  "regressions": 0,
+  "bonus_findings": [],
+  "fixes_applied": 0,
+  "cumulative_fixed": 5,
+  "status": "open",
+  "errors": [
+    "diagnostician: 丢弃假设[1] PH-09 已修复（勿重提）"
+  ]
+}

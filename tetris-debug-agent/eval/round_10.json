@@ -1,0 +1,109 @@
+{
+  "round_id": 10,
+  "timestamp": "2026-09-20 23:00:54",
+  "mode": "llm",
+  "models": {
+    "vision": "qwen/qwen3-vl-235b-a22b-instruct",
+    "text": "deepseek/deepseek-chat"
+  },
+  "input": {
+    "n_events": 195,
+    "n_screenshots": 1,
+    "tickets": [
+      "S0000017"
+    ],
+    "outcome": "window_closed"
+  },
+  "tokens": {
+    "n_llm_calls": 18,
+    "prompt_tokens": 19589,
+    "completion_tokens": 4107,
+    "by_agent": {
+      "ingest": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      },
+      "feedback": {
+        "n_calls": 1,
+        "prompt_tokens": 185,
+        "completion_tokens": 140
+      },
+      "vision": {
+        "n_calls": 1,
+        "prompt_tokens": 451,
+        "completion_tokens": 23
+      },
+      "diagnostician": {
+        "n_calls": 1,
+        "prompt_tokens": 1750,
+        "completion_tokens": 531
+      },
+      "patcher": {
+        "n_calls": 15,
+        "prompt_tokens": 17203,
+        "completion_tokens": 3413
+      },
+      "tester": {
+        "n_calls": 0,
+        "prompt_tokens": 0,
+        "completion_tokens": 0
+      }
+    }
+  },
+  "n_graph_steps": 38,
+  "duration_sec": 234.3,
+  "hypotheses": [
+    {
+      "rank": 1,
+      "phenomenon_id": "PH-02",
+      "confidence": 0.9,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 2,
+      "phenomenon_id": "PH-09",
+      "confidence": 0.8,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 3,
+      "phenomenon_id": "PH-04",
+      "confidence": 0.7,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 4,
+      "phenomenon_id": "PH-03",
+      "confidence": 0.6,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    },
+    {
+      "rank": 5,
+      "phenomenon_id": "PH-08",
+      "confidence": 0.5,
+      "source": "llm",
+      "outcome": "rejected",
+      "attempts": 3
+    }
+  ],
+  "hit_summary": {
+    "proposed": 5,
+    "confirmed": 0,
+    "false_positive": 5
+  },
+  "regressions": 0,
+  "bonus_findings": [],
+  "fixes_applied": 0,
+  "cumulative_fixed": 4,
+  "status": "open",
+  "errors": []
+}

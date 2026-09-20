@@ -1,0 +1,195 @@
+{"ts": 1789916107.015, "event": "round_start"}
+{"ts": 1789916107.218, "event": "preview", "kind": "O"}
+{"ts": 1789916107.218, "event": "spawn", "piece": "J", "cr": [6, 0]}
+{"ts": 1789916107.419, "event": "fall", "cr": [6, 1]}
+{"ts": 1789916107.621, "event": "fall", "cr": [6, 2]}
+{"ts": 1789916107.823, "event": "fall", "cr": [6, 3]}
+{"ts": 1789916108.026, "event": "fall", "cr": [6, 4]}
+{"ts": 1789916108.242, "event": "fall", "cr": [6, 5]}
+{"ts": 1789916108.444, "event": "fall", "cr": [6, 6]}
+{"ts": 1789916108.648, "event": "fall", "cr": [6, 7]}
+{"ts": 1789916108.852, "event": "fall", "cr": [6, 8]}
+{"ts": 1789916108.9, "event": "rotate", "cr": [6, 8]}
+{"ts": 1789916109.054, "event": "fall", "cr": [6, 9]}
+{"ts": 1789916109.167, "event": "rotate", "cr": [6, 9]}
+{"ts": 1789916109.259, "event": "fall", "cr": [6, 10]}
+{"ts": 1789916109.371, "event": "rotate", "cr": [6, 10]}
+{"ts": 1789916109.47, "event": "fall", "cr": [6, 11]}
+{"ts": 1789916109.653, "event": "move", "action": "left", "cr": [5, 11]}
+{"ts": 1789916109.678, "event": "fall", "cr": [5, 12]}
+{"ts": 1789916109.884, "event": "fall", "cr": [5, 13]}
+{"ts": 1789916110.085, "event": "fall", "cr": [5, 14]}
+{"ts": 1789916110.167, "event": "move", "action": "left", "cr": [4, 14]}
+{"ts": 1789916110.195, "event": "move", "action": "left", "cr": [3, 14]}
+{"ts": 1789916110.227, "event": "move", "action": "left", "cr": [2, 14]}
+{"ts": 1789916110.257, "event": "move", "action": "left", "cr": [1, 14]}
+{"ts": 1789916110.287, "event": "fall", "cr": [1, 15]}
+{"ts": 1789916110.29, "event": "move", "action": "left", "cr": [0, 15]}
+{"ts": 1789916110.49, "event": "fall", "cr": [0, 16]}
+{"ts": 1789916110.569, "event": "hard_drop", "distance": 3, "cr": [0, 19]}
+{"ts": 1789916110.698, "event": "lock", "piece": "J", "cr": [0, 19]}
+{"ts": 1789916110.9, "event": "preview", "kind": "O"}
+{"ts": 1789916110.9, "event": "spawn", "piece": "O", "cr": [6, 0]}
+{"ts": 1789916111.007, "event": "move", "action": "right", "cr": [7, 0]}
+{"ts": 1789916111.102, "event": "fall", "cr": [7, 1]}
+{"ts": 1789916111.303, "event": "fall", "cr": [7, 2]}
+{"ts": 1789916111.51, "event": "move", "action": "right", "cr": [8, 2]}
+{"ts": 1789916111.511, "event": "fall", "cr": [8, 3]}
+{"ts": 1789916111.541, "event": "move", "action": "right", "cr": [9, 3]}
+{"ts": 1789916111.588, "event": "move", "action": "right", "cr": [10, 3]}
+{"ts": 1789916111.618, "event": "move", "action": "right", "cr": [11, 3]}
+{"ts": 1789916111.724, "event": "fall", "cr": [11, 4]}
+{"ts": 1789916111.902, "event": "hard_drop", "distance": 15, "cr": [11, 19]}
+{"ts": 1789916111.927, "event": "lock", "piece": "O", "cr": [11, 19]}
+{"ts": 1789916112.132, "event": "preview", "kind": "J"}
+{"ts": 1789916112.133, "event": "spawn", "piece": "O", "cr": [6, 0]}
+{"ts": 1789916112.336, "event": "fall", "cr": [6, 1]}
+{"ts": 1789916112.537, "event": "fall", "cr": [6, 2]}
+{"ts": 1789916112.617, "event": "rotate", "cr": [6, 2]}
+{"ts": 1789916112.739, "event": "fall", "cr": [6, 3]}
+{"ts": 1789916112.943, "event": "fall", "cr": [6, 4]}
+{"ts": 1789916113.089, "event": "move", "action": "left", "cr": [5, 4]}
+{"ts": 1789916113.146, "event": "fall", "cr": [5, 5]}
+{"ts": 1789916113.349, "event": "fall", "cr": [5, 6]}
+{"ts": 1789916113.467, "event": "move", "action": "left", "cr": [4, 6]}
+{"ts": 1789916113.553, "event": "fall", "cr": [4, 7]}
+{"ts": 1789916113.757, "event": "fall", "cr": [4, 8]}
+{"ts": 1789916113.771, "event": "hard_drop", "distance": 10, "cr": [4, 18]}
+{"ts": 1789916113.961, "event": "lock", "piece": "O", "cr": [4, 18]}
+{"ts": 1789916114.178, "event": "preview", "kind": "T"}
+{"ts": 1789916114.179, "event": "spawn", "piece": "J", "cr": [6, 0]}
+{"ts": 1789916114.21, "event": "move", "action": "left", "cr": [5, 0]}
+{"ts": 1789916114.38, "event": "fall", "cr": [5, 1]}
+{"ts": 1789916114.584, "event": "fall", "cr": [5, 2]}
+{"ts": 1789916114.713, "event": "move", "action": "left", "cr": [4, 2]}
+{"ts": 1789916114.742, "event": "move", "action": "left", "cr": [3, 2]}
+{"ts": 1789916114.788, "event": "fall", "cr": [3, 3]}
+{"ts": 1789916114.795, "event": "move", "action": "left", "cr": [2, 3]}
+{"ts": 1789916114.819, "event": "move", "action": "left", "cr": [1, 3]}
+{"ts": 1789916114.974, "event": "rotate", "cr": [1, 3]}
+{"ts": 1789916115.006, "event": "lock", "piece": "J", "cr": [1, 3]}
+{"ts": 1789916115.207, "event": "preview", "kind": "S"}
+{"ts": 1789916115.208, "event": "spawn", "piece": "T", "cr": [6, 0]}
+{"ts": 1789916115.412, "event": "fall", "cr": [6, 1]}
+{"ts": 1789916115.613, "event": "fall", "cr": [6, 2]}
+{"ts": 1789916115.634, "event": "move", "action": "left", "cr": [5, 2]}
+{"ts": 1789916115.677, "event": "move", "action": "left", "cr": [4, 2]}
+{"ts": 1789916115.71, "event": "move", "action": "left", "cr": [3, 2]}
+{"ts": 1789916115.74, "event": "move", "action": "left", "cr": [2, 2]}
+{"ts": 1789916115.771, "event": "move", "action": "left", "cr": [1, 2]}
+{"ts": 1789916115.817, "event": "lock", "piece": "T", "cr": [1, 2]}
+{"ts": 1789916116.02, "event": "preview", "kind": "S"}
+{"ts": 1789916116.02, "event": "spawn", "piece": "S", "cr": [6, 0]}
+{"ts": 1789916116.167, "event": "move", "action": "right", "cr": [7, 0]}
+{"ts": 1789916116.221, "event": "fall", "cr": [7, 1]}
+{"ts": 1789916116.425, "event": "fall", "cr": [7, 2]}
+{"ts": 1789916116.506, "event": "move", "action": "left", "cr": [6, 2]}
+{"ts": 1789916116.628, "event": "fall", "cr": [6, 3]}
+{"ts": 1789916116.833, "event": "fall", "cr": [6, 4]}
+{"ts": 1789916116.895, "event": "rotate", "cr": [6, 4]}
+{"ts": 1789916117.034, "event": "fall", "cr": [6, 5]}
+{"ts": 1789916117.238, "event": "fall", "cr": [6, 6]}
+{"ts": 1789916117.359, "event": "move", "action": "left", "cr": [5, 6]}
+{"ts": 1789916117.44, "event": "fall", "cr": [5, 7]}
+{"ts": 1789916117.646, "event": "fall", "cr": [5, 8]}
+{"ts": 1789916117.849, "event": "fall", "cr": [5, 9]}
+{"ts": 1789916117.867, "event": "move", "action": "left", "cr": [4, 9]}
+{"ts": 1789916117.901, "event": "move", "action": "left", "cr": [3, 9]}
+{"ts": 1789916117.93, "event": "move", "action": "left", "cr": [2, 9]}
+{"ts": 1789916117.962, "event": "move", "action": "left", "cr": [1, 9]}
+{"ts": 1789916118.051, "event": "fall", "cr": [1, 10]}
+{"ts": 1789916118.254, "event": "fall", "cr": [1, 11]}
+{"ts": 1789916118.367, "event": "hard_drop", "distance": 6, "cr": [1, 17]}
+{"ts": 1789916118.458, "event": "lock", "piece": "S", "cr": [1, 17]}
+{"ts": 1789916118.663, "event": "preview", "kind": "S"}
+{"ts": 1789916118.664, "event": "spawn", "piece": "S", "cr": [6, 0]}
+{"ts": 1789916118.867, "event": "fall", "cr": [6, 1]}
+{"ts": 1789916119.07, "event": "fall", "cr": [6, 2]}
+{"ts": 1789916119.15, "event": "move", "action": "left", "cr": [5, 2]}
+{"ts": 1789916119.181, "event": "move", "action": "left", "cr": [4, 2]}
+{"ts": 1789916119.274, "event": "fall", "cr": [4, 3]}
+{"ts": 1789916119.304, "event": "move", "action": "left", "cr": [3, 3]}
+{"ts": 1789916119.474, "event": "fall", "cr": [3, 4]}
+{"ts": 1789916119.68, "event": "fall", "cr": [3, 5]}
+{"ts": 1789916119.711, "event": "move", "action": "left", "cr": [2, 5]}
+{"ts": 1789916119.881, "event": "fall", "cr": [2, 6]}
+{"ts": 1789916119.899, "event": "move", "action": "left", "cr": [1, 6]}
+{"ts": 1789916120.085, "event": "fall", "cr": [1, 7]}
+{"ts": 1789916120.287, "event": "fall", "cr": [1, 8]}
+{"ts": 1789916120.459, "event": "hard_drop", "distance": 7, "cr": [1, 15]}
+{"ts": 1789916120.49, "event": "lock", "piece": "S", "cr": [1, 15]}
+{"ts": 1789916120.692, "event": "preview", "kind": "J"}
+{"ts": 1789916120.693, "event": "spawn", "piece": "S", "cr": [6, 0]}
+{"ts": 1789916120.898, "event": "fall", "cr": [6, 1]}
+{"ts": 1789916121.1, "event": "fall", "cr": [6, 2]}
+{"ts": 1789916121.149, "event": "move", "action": "left", "cr": [5, 2]}
+{"ts": 1789916121.18, "event": "move", "action": "left", "cr": [4, 2]}
+{"ts": 1789916121.304, "event": "fall", "cr": [4, 3]}
+{"ts": 1789916121.334, "event": "move", "action": "left", "cr": [3, 3]}
+{"ts": 1789916121.506, "event": "fall", "cr": [3, 4]}
+{"ts": 1789916121.71, "event": "fall", "cr": [3, 5]}
+{"ts": 1789916121.745, "event": "move", "action": "left", "cr": [2, 5]}
+{"ts": 1789916121.914, "event": "fall", "cr": [2, 6]}
+{"ts": 1789916121.931, "event": "move", "action": "left", "cr": [1, 6]}
+{"ts": 1789916122.116, "event": "fall", "cr": [1, 7]}
+{"ts": 1789916122.325, "event": "fall", "cr": [1, 8]}
+{"ts": 1789916122.54, "event": "fall", "cr": [1, 9]}
+{"ts": 1789916122.747, "event": "fall", "cr": [1, 10]}
+{"ts": 1789916122.95, "event": "fall", "cr": [1, 11]}
+{"ts": 1789916123.153, "event": "fall", "cr": [1, 12]}
+{"ts": 1789916123.36, "event": "fall", "cr": [1, 13]}
+{"ts": 1789916123.562, "event": "lock", "piece": "S", "cr": [1, 13]}
+{"ts": 1789916123.768, "event": "preview", "kind": "O"}
+{"ts": 1789916123.769, "event": "spawn", "piece": "J", "cr": [6, 0]}
+{"ts": 1789916123.8, "event": "move", "action": "left", "cr": [5, 0]}
+{"ts": 1789916123.832, "event": "move", "action": "left", "cr": [4, 0]}
+{"ts": 1789916123.879, "event": "move", "action": "left", "cr": [3, 0]}
+{"ts": 1789916123.91, "event": "move", "action": "left", "cr": [2, 0]}
+{"ts": 1789916123.941, "event": "move", "action": "left", "cr": [1, 0]}
+{"ts": 1789916123.971, "event": "lock", "piece": "J", "cr": [1, 0]}
+{"ts": 1789916124.174, "event": "preview", "kind": "J"}
+{"ts": 1789916124.174, "event": "spawn", "piece": "O", "cr": [6, 0]}
+{"ts": 1789916124.178, "event": "move", "action": "left", "cr": [5, 0]}
+{"ts": 1789916124.206, "event": "move", "action": "left", "cr": [4, 0]}
+{"ts": 1789916124.238, "event": "move", "action": "left", "cr": [3, 0]}
+{"ts": 1789916124.377, "event": "fall", "cr": [3, 1]}
+{"ts": 1789916124.581, "event": "lock", "piece": "O", "cr": [3, 1]}
+{"ts": 1789916124.785, "event": "preview", "kind": "J"}
+{"ts": 1789916124.785, "event": "spawn", "piece": "J", "cr": [6, 0]}
+{"ts": 1789916124.988, "event": "fall", "cr": [6, 1]}
+{"ts": 1789916125.194, "event": "move", "action": "left", "cr": [5, 1]}
+{"ts": 1789916125.195, "event": "fall", "cr": [5, 2]}
+{"ts": 1789916125.239, "event": "move", "action": "left", "cr": [4, 2]}
+{"ts": 1789916125.397, "event": "fall", "cr": [4, 3]}
+{"ts": 1789916125.6, "event": "fall", "cr": [4, 4]}
+{"ts": 1789916125.631, "event": "move", "action": "left", "cr": [3, 4]}
+{"ts": 1789916125.801, "event": "fall", "cr": [3, 5]}
+{"ts": 1789916125.833, "event": "move", "action": "left", "cr": [2, 5]}
+{"ts": 1789916126.003, "event": "fall", "cr": [2, 6]}
+{"ts": 1789916126.207, "event": "fall", "cr": [2, 7]}
+{"ts": 1789916126.224, "event": "move", "action": "left", "cr": [1, 7]}
+{"ts": 1789916126.41, "event": "fall", "cr": [1, 8]}
+{"ts": 1789916126.615, "event": "fall", "cr": [1, 9]}
+{"ts": 1789916126.629, "event": "hard_drop", "distance": 2, "cr": [1, 11]}
+{"ts": 1789916126.819, "event": "lock", "piece": "J", "cr": [1, 11]}
+{"ts": 1789916127.023, "event": "preview", "kind": "L"}
+{"ts": 1789916127.023, "event": "spawn", "piece": "J", "cr": [6, 0]}
+{"ts": 1789916127.225, "event": "fall", "cr": [6, 1]}
+{"ts": 1789916127.428, "event": "fall", "cr": [6, 2]}
+{"ts": 1789916127.634, "event": "fall", "cr": [6, 3]}
+{"ts": 1789916127.838, "event": "fall", "cr": [6, 4]}
+{"ts": 1789916128.042, "event": "fall", "cr": [6, 5]}
+{"ts": 1789916128.246, "event": "fall", "cr": [6, 6]}
+{"ts": 1789916128.45, "event": "fall", "cr": [6, 7]}
+{"ts": 1789916128.655, "event": "fall", "cr": [6, 8]}
+{"ts": 1789916128.857, "event": "fall", "cr": [6, 9]}
+{"ts": 1789916129.059, "event": "fall", "cr": [6, 10]}
+{"ts": 1789916129.261, "event": "fall", "cr": [6, 11]}
+{"ts": 1789916129.464, "event": "fall", "cr": [6, 12]}
+{"ts": 1789916129.667, "event": "fall", "cr": [6, 13]}
+{"ts": 1789916129.871, "event": "fall", "cr": [6, 14]}
+{"ts": 1789916130.024, "event": "pause", "success": true}
+{"ts": 1789916157.134, "event": "screenshot_uploaded", "ticket_id": "S0000017", "path": "D:\\project\\tetris-playanddebug\\tetris-debug-agent\\data\\runs\\round_10\\screenshot_S0000017_1.png"}
+{"ts": 1789916177.753, "event": "feedback_submitted", "ticket_id": "S0000017", "source": "暂停面板", "length": 17, "has_screenshot": true}
+{"ts": 1789916182.849, "event": "window_closed", "score": 0}
+{"ts": 1789916182.851, "event": "game_over", "outcome": "window_closed", "score": 0}

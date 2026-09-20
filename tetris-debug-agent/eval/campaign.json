@@ -1,26 +1,14 @@
 [
   {
-    "round_id": 2,
+    "round_id": 15,
     "mode": "llm",
-    "fixes_applied": 0,
-    "cumulative_fixed": 1,
+    "fixes_applied": 1,
+    "cumulative_fixed": 7,
     "status": "open",
-    "n_llm_calls": 3,
-    "prompt_tokens": 9121,
-    "completion_tokens": 131,
+    "n_llm_calls": 5,
+    "prompt_tokens": 3895,
+    "completion_tokens": 931,
     "n_graph_steps": 6,
-    "duration_sec": 30.549
-  },
-  {
-    "round_id": 3,
-    "mode": "llm",
-    "fixes_applied": 0,
-    "cumulative_fixed": 1,
-    "status": "open",
-    "n_llm_calls": 6,
-    "prompt_tokens": 12722,
-    "completion_tokens": 784,
-    "n_graph_steps": 13,
-    "duration_sec": 59.149
+    "duration_sec": 40.754
   }
 ]
