@@ -365,7 +365,7 @@ class TetrisGame:
 
     def _resume(self, event=None) -> None:
         """从暂停恢复：关闭面板、重启主循环。"""
-        if self.paused:
+        if not self.paused:
             return
         if self._pause_panel is not None:
             try:
