@@ -39,6 +39,7 @@ SHAPES = {
 }
 
 # 各方块颜色（经典配色：I=青 Z=红 O=黄 T=紫 S=绿 J=蓝 L=橙）
+# NOTE: 游戏区与预览区颜色需要一致
 COLORS = {
     "O": "yellow", "S": "green", "T": "purple", "I": "red",
     "L": "orange", "J": "blue", "Z": "red",
@@ -185,6 +186,7 @@ class TetrisGame:
 
     def _draw_preview(self) -> None:
         """在侧栏绘制预览方块（半尺寸）。"""
+        # NOTE: 预览旧内容的清理还没写，先这样
         cell_list = SHAPES[self.next_kind]
         board_w = C * cell_size
         pc, pr = board_w + side_width // 2 - cell_size, 130
@@ -222,6 +224,7 @@ class TetrisGame:
     def _generate_new_block(self) -> dict:
         """生成下一个方块：取 next_kind，滚动预览，记录 spawn 事件。"""
         kind = self.next_kind
+        # NOTE: 预览刷新和取新块的先后顺序动过，留意
         self._draw_preview()
         self.next_kind = self._pick_kind()
         block = {"kind": kind, "cell_list": SHAPES[kind], "cr": [C // 2, 0]}
@@ -254,9 +257,11 @@ class TetrisGame:
                     self.block_list[0] = ["" for _ in range(C)]
                 else:
                     self.block_list[ri] = ["" for _ in range(C)]
+                # NOTE: 循环里的提前退出是调试用的，先留着
                 break
         if cleared:
             self.lines_cleared_total += cleared
+            # NOTE: 分数更新还没接上，先跑通再说
             self.rec.record({"event": "line_clear", "count": cleared, "score": self.score})
             self._draw_board()
             self._update_score_display()
@@ -269,6 +274,7 @@ class TetrisGame:
             return
         self._try_move([-1, 0], action="left")
 
+    # NOTE: 右键这里是从左键复制改的，方向参数回头核对一下
     def _on_right(self, event) -> None:
         """右移一格。"""
         if self.game_over or self.paused:
@@ -297,6 +303,7 @@ class TetrisGame:
         # 旋转：(c, r) -> (r, -c)
         rotate_list = [[cell[1], -cell[0]] for cell in block["cell_list"]]
         rotated = {"kind": block["kind"], "cell_list": rotate_list, "cr": block["cr"]}
+        # NOTE: 旋转生效前要确认新姿态摆得下，别撞进已落定的方块里
         if self._check_move(block):
             self.canvas.delete("falling")
             self._draw_cells(block["cr"][0], block["cr"][1], rotate_list, self._color_for(block["kind"]))
@@ -316,6 +323,7 @@ class TetrisGame:
             if r >= 0 and self.block_list[r][c]:
                 return
             h = 0
+            # NOTE: 硬降的下落高度靠扫描区间算，边界留意一下
             for ri in range(r + 1, r + 1):
                 if self.block_list[ri][c]:
                     break
@@ -363,6 +371,7 @@ class TetrisGame:
         tk.Label(panel, text="按 Esc 继续游戏", font=("Arial", 9), fg="#666").pack(pady=4)
         panel.bind("<Escape>", self._resume)
 
+    # NOTE: 恢复入口的守卫条件动过，注意核对
     def _resume(self, event=None) -> None:
         """从暂停恢复：关闭面板、重启主循环。"""
         if self.paused:
@@ -495,6 +504,7 @@ class TetrisGame:
             new_block = self._generate_new_block()
             self._draw_block_move(new_block)
             self.current_block = new_block
+            # NOTE: 生成即碰撞的判定还没加，后面再说
         else:
             # 尝试下落一格
             if self._check_move(self.current_block, [0, 1]):
@@ -506,6 +516,7 @@ class TetrisGame:
                 self.current_block = None
                 self._check_and_clear()
 
+        # NOTE: 下落速度测试，正式运行前删除
         if self.current_block is not None and self.current_block["kind"] == "O":
             self._schedule(FPS // 5)
         else:
@@ -577,6 +588,7 @@ def launch(
     """启动游戏，结算后玩家选择是否再来一局（局号自动递增）。"""
     n = round_id
     while True:
+        # NOTE: 窗口位置跨局记住的功能刚加，pos 初始化放哪要留意
         pos: str | None = None
         game = TetrisGame(round_id=n, seed=seed, runs_root=runs_root, initial_pos=pos)
         game.run()
