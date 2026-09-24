@@ -16,6 +16,7 @@ SYSTEM = (
     "1. search 必须是目标源码中原样存在的连续片段（保持缩进），且在文件中恰好出现一次；\n"
     "2. replace 是修复后的完整片段；改动最小化，只修该假设对应的问题；\n"
     '3. 输出 JSON：{"blocks": [{"search": "...", "replace": "..."}], "note": "修复说明"}\n'
+    "现象线索（clue）是代码遗留备注，需结合嫌疑函数源码理解其指向的具体问题；只修该问题。"
     "不要输出多余解释。"
 )
 
@@ -49,9 +50,8 @@ def node_patcher(state: dict) -> dict:
     user = {
         "现象": {
             "id": ph,
-            "name": catalog.get(ph, {}).get("name", ""),
-            "symptom": catalog.get(ph, {}).get("symptom", ""),
-            "signal": catalog.get(ph, {}).get("signal", ""),
+            "clue": catalog.get(ph, {}).get("clue", ""),
+            "observable_via": catalog.get(ph, {}).get("observable_via", []),
         },
         "假设": {
             "suspect_function": fn or "未定位",

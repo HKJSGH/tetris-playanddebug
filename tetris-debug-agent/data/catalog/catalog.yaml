@@ -1,77 +1,54 @@
-catalog_version: 1
-source_sha256: 61f7da28390b7e60c27c4dee4bf46c3197a7961afe05bdb071600fb810ad514e
+catalog_version: 2
+source_sha256: fbb1fdf15fa4e9f6ccad4e8195e848f11e74b7d58ae6f9a0cad555997d83bd16
+bugs_sha256: 61f7da28390b7e60c27c4dee4bf46c3197a7961afe05bdb071600fb810ad514e
 phenomena:
 - id: PH-01
-  name: O 块下落 5 倍速
-  symptom: 正方形(O)方块下落速度异常快，约为其他形状的 5 倍，来不及摆放。
-  signal: 埋点：O 块 spawn→lock 的 fall 间隔约为其他形状下落间隔的 1/5
+  clue: 下落速度测试，正式运行前删除
   observable_via:
   - telemetry
 - id: PH-02
-  name: 旋转穿块
-  symptom: 方块旋转时不检查碰撞，可以旋转进已落定的方块里，出现重叠。
-  signal: 埋点：rotate 事件后方块格子与已占格重叠
+  clue: 旋转生效前要确认新姿态摆得下，别撞进已落定的方块里
   observable_via:
   - telemetry
 - id: PH-03
-  name: 消行不加分
-  symptom: 消除满行后分数不增加，消了行分数纹丝不动。
-  signal: 埋点：line_clear(count>0) 但 score 无增量
+  clue: 分数更新还没接上，先跑通再说
   observable_via:
   - telemetry
 - id: PH-04
-  name: 堆满顶部不结束
-  symptom: 方块堆满到顶部、新块无处生成时游戏也不结束，新块直接叠在已有方块上，只能手动暂停重新开始。
-  signal: 埋点：新块生成即与已占格碰撞但无 game_over 事件
+  clue: 生成即碰撞的判定还没加，后面再说
   observable_via:
   - telemetry
 - id: PH-05
-  name: 右键向左移动
-  symptom: 按右方向键方块向左移动（与左键行为相同），右移失效；左键仍正常左移。
-  signal: 埋点：move 事件 action=right 但 cr 列减小（与 action=left 行为一致）
+  clue: 右键这里是从左键复制改的，方向参数回头核对一下
   observable_via:
   - telemetry
 - id: PH-06
-  name: I 块颜色错乱
-  symptom: 游戏区中 I 型方块显示为红色，与「下一个」预览区的青色 I 块不一致；且场上红色方块有两种形状（I 与 Z）。
-  signal: 截图 VLM：游戏区 I 块红色 ≠ 预览 I 块青色；玩家文字反馈颜色异常
+  clue: 游戏区与预览区颜色需要一致
   observable_via:
   - screenshot
   - feedback
 - id: PH-07
-  name: 预览与实际不符
-  symptom: 侧栏「下一个」预览的方块与实际掉落下来的下一块不一致：预览显示的总是当前正在下落的方块（滞后一拍），失去预告作用。
-  signal: 埋点：preview 事件与同一生成帧的 spawn 事件 kind 恒相等； 正确不变式应为本次 preview 与下一帧生成 kind 一致，该相关性消失。
+  clue: 预览刷新和取新块的先后顺序动过，留意
   observable_via:
   - telemetry
 - id: PH-08
-  name: 多行同时满只消一行
-  symptom: 两行或更多行同时填满时，一次只消掉最上面一行，其余满行残留。
-  signal: 埋点：line_clear count 恒 ≤1，且 game_state 网格中可同时存在多个满行
+  clue: 循环里的提前退出是调试用的，先留着
   observable_via:
   - telemetry
 - id: PH-09
-  name: 暂停后无法恢复
-  symptom: 按 Esc 暂停后，再按 Esc 无法继续游戏，暂停面板关不掉，只能点「重新开始」手动结束本轮。
-  signal: 埋点：pause 事件后无 resume 事件，最终以 manual_restart 收尾
+  clue: 恢复入口的守卫条件动过，注意核对
   observable_via:
   - telemetry
 - id: PH-10
-  name: 硬降失效
-  symptom: 按 ↓ 硬降时方块原地不动，无法快速落底。
-  signal: 埋点：hard_drop 事件 distance 恒为 0
+  clue: 硬降的下落高度靠扫描区间算，边界留意一下
   observable_via:
   - telemetry
 - id: PH-11
-  name: 预览区残影叠加
-  symptom: 侧栏「下一个」预览区域越来越花，多个方块轮廓叠在一起；越玩越明显，但游戏仍能继续。
-  signal: 埋点无法感知（纯渲染问题）；依赖玩家文字反馈与截图（VLM 识别预览区多轮廓叠加）
+  clue: 预览旧内容的清理还没写，先这样
   observable_via:
   - screenshot
   - feedback
 - id: PH-12
-  name: 重新开始后窗口位置重置
-  symptom: 游戏窗口默认出现在屏幕左上角；玩家把窗口拖到舒适位置后，一局结束再开新局时窗口又回到左上角，位置没有保持。
-  signal: 埋点无法感知（窗口管理问题）；依赖玩家文字反馈（重新开始后窗口回到左上角）
+  clue: 窗口位置跨局记住的功能刚加，pos 初始化放哪要留意
   observable_via:
   - feedback

@@ -30,6 +30,7 @@ _load_env_file(SANDBOX_ROOT / ".env.local")
 DATA_ROOT = SANDBOX_ROOT / "data"
 RUNS_ROOT = DATA_ROOT / "runs"
 CATALOG_PATH = DATA_ROOT / "catalog" / "catalog.yaml"
+REFERENCE_DIR = DATA_ROOT / "reference"          # 基准截图（正确渲染对照，gen_reference 产出）
 GOLD_DIR = DATA_ROOT / "gold"
 TRUTH_MAP_PATH = GOLD_DIR / "truth_map.json"
 GOLDEN_PATH = GOLD_DIR / "golden.json"

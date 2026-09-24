@@ -41,34 +41,30 @@ def _read_fixed() -> list[dict]:
     return []
 
 
-def _load_symptoms() -> dict[str, str]:
-    """catalog.yaml 现象号 → 症状描述（总结展示用；catalog 是 pipeline 合法输入）。"""
-    p = SANDBOX_ROOT / "data" / "catalog" / "catalog.yaml"
-    if not p.exists():
+def _load_clues() -> dict[str, str]:
+    """catalog.yaml 现象号 → 注释线索（总结兜底描述；catalog 是 pipeline 合法输入）。"""
+    try:
+        from agent.nodes.common import load_catalog
+        cat = load_catalog() or {}
+    except Exception:  # noqa: BLE001 — catalog 缺失/损坏时总结退化为占位描述
         return {}
-    out: dict[str, str] = {}
-    cur: str | None = None
-    for line in p.read_text(encoding="utf-8").splitlines():
-        s = line.strip()
-        if s.startswith("- id: "):
-            cur = s.removeprefix("- id: ").strip()
-        elif s.startswith("symptom:") and cur:
-            out[cur] = s.removeprefix("symptom:").strip()
-    return out
+    return {p.get("id", ""): str(p.get("clue", "")).strip()
+            for p in cat.get("phenomena", []) if p.get("id")}
 
 
 def print_fix_report(before_ph: set[str], session_rounds: list[int]) -> None:
     """debug 收尾总结：只写现象描述，不暴露 PH/Bug 编号——真实环境下 agent
     不知道现象对应哪个预设 bug，编号仅作内部 key 使用。"""
-    sym = _load_symptoms()
-
-    def desc(ph: str) -> str:
-        return sym.get(ph, f"（未登记的现象 {ph}）")
-
+    clues = _load_clues()
     fx = json.loads(FIXES_PATH.read_text(encoding="utf-8")) if FIXES_PATH.exists() else {}
     fixed = fx.get("fixed_phenomena", [])
-    fixed_ids = {f["phenomenon_id"] for f in fixed}
-    session_fixed = [f["phenomenon_id"] for f in fixed if f["phenomenon_id"] not in before_ph]
+    fixed_hyp = {f["phenomenon_id"]: str(f.get("hypothesis", "")).strip() for f in fixed}
+    fixed_ids = set(fixed_hyp)
+    session_fixed = [ph for ph in fixed_hyp if ph not in before_ph]
+
+    def desc(ph: str) -> str:
+        # 已修复条目优先用诊断师归纳的现象描述（hypothesis），其余退回注释线索
+        return fixed_hyp.get(ph) or clues.get(ph, "") or "（未登记现象）"
 
     seen_attempts: dict[str, int] = {}
     for r in fx.get("rejected", []):
@@ -76,7 +72,7 @@ def print_fix_report(before_ph: set[str], session_rounds: list[int]) -> None:
             ph = r["phenomenon_id"]
             seen_attempts[ph] = max(seen_attempts.get(ph, 0), r.get("attempts", 0) or 0)
 
-    unresolved = [ph for ph in sym if ph not in fixed_ids and ph not in seen_attempts]
+    unresolved = [ph for ph in clues if ph not in fixed_ids and ph not in seen_attempts]
 
     print("=" * 60)
     print("本次 debug 总结")

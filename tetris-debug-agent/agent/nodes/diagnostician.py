@@ -14,7 +14,8 @@ from agent.tools.llm import llm_available, parse_json_text
 
 SYSTEM = (
     "你是俄罗斯方块游戏的诊断专家。根据三路证据（视觉发现、玩家症状、遥测探针）"
-    "对照现象目录（catalog：每个现象有 id/name/symptom/signal/observable_via）"
+    "对照现象目录（catalog：每个现象有 id/clue/observable_via；clue 是游戏代码里"
+    "遗留的开发者备注线索，只提示需要注意的位置或意图，不是现象的完整描述）"
     "提出修复假设清单。\n"
     "约束：\n"
     "1. phenomenon_id 必须取自 catalog；\n"
@@ -23,8 +24,9 @@ SYSTEM = (
     '4. 输出 JSON 数组：[{"phenomenon_id": "PH-xx", "suspect_function": "函数名",'
     ' "confidence": 0-1, "rationale": "理由", "evidence": ["证据要点"]}]\n'
     "5. already_fixed 中的现象已修复，勿再提出；previously_rejected 是此前局被否决的"
-    "记录，除非本局证据给出明显新线索，否则不要重复提出。"
-    "只依据给定材料，不要臆造现象。"
+    "记录，除非本局证据给出明显新线索，否则不要重复提出。\n"
+    "clue 是弱线索：必须把 clue 与探针证据/玩家症状/视觉发现交叉印证后归纳出具体"
+    "现象，不要把 clue 原文直接当作结论。只依据给定材料，不要臆造现象。"
 )
 
 
