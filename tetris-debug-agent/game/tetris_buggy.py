@@ -274,7 +274,7 @@ class TetrisGame:
         """右移一格。"""
         if self.game_over or self.paused:
             return
-        self._try_move([-1, 0], action="right")
+        self._try_move([1, 0], action="right")
 
     def _try_move(self, direction, action: str) -> None:
         """尝试移动并记录（可移动才执行）。"""
