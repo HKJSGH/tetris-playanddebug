@@ -297,7 +297,7 @@ class TetrisGame:
         # 旋转：(c, r) -> (r, -c)
         rotate_list = [[cell[1], -cell[0]] for cell in block["cell_list"]]
         rotated = {"kind": block["kind"], "cell_list": rotate_list, "cr": block["cr"]}
-        if self._check_move(block):
+        if self._check_move(rotated):
             self.canvas.delete("falling")
             self._draw_cells(block["cr"][0], block["cr"][1], rotate_list, self._color_for(block["kind"]))
             self.current_block = rotated
