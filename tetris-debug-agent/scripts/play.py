@@ -11,8 +11,12 @@ debug 结束后的两种走向：
   2. 未收敛 → 询问「是否立即开始新一轮游戏？」——Y 在本实验内继续游玩
      （新一轮 debug），N 保持现状（玩家可能只是暂时休息，随时重跑本脚本
      继续）。主动终止实验走手动命令：python scripts/archive_reset.py [--tag 实验名]
+
+同进程续玩时每次启动前 importlib.reload 游戏模块：上一轮 debug 写回的
+修复补丁必须重载才生效（否则玩家游玩的仍是修复前的旧字节码）。
 """
 import argparse
+import importlib
 import json
 import re
 import subprocess
@@ -22,7 +26,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from game.tetris_buggy import launch  # noqa: E402
+from game import tetris_buggy  # noqa: E402
 
 RUNS_ROOT = ROOT / "data" / "runs"
 FIXES_PATH = ROOT / "data" / "fixes.json"
@@ -52,6 +56,18 @@ def _ask(prompt: str) -> bool:
         return False
 
 
+def _launch_round(rid: int, seed: int) -> None:
+    """启动一局游戏；每次游玩前重载游戏模块。
+
+    同进程续玩（debug 后询问「开始新一轮」Y → main() 递归）时，上一轮
+    debug 已把修复补丁写回 game/tetris_buggy.py，但 Python 模块缓存里
+    仍是修复前的旧代码——不重载的话玩家后续轮次游玩的永远是旧字节码，
+    表现为「总结说已修复、实际异常依旧」。
+    """
+    importlib.reload(tetris_buggy)
+    tetris_buggy.launch(round_id=rid, seed=seed)
+
+
 def main() -> None:
     """解析参数并启动游戏，结束后自动 debug。"""
     for stream in (sys.stdout, sys.stderr):
@@ -68,7 +84,7 @@ def main() -> None:
     args = ap.parse_args()
     rid = args.round if args.round is not None else next_round()
     print(f"对局数据将写入 data/runs/round_{rid}/（seed={args.seed}）")
-    launch(round_id=rid, seed=args.seed)
+    _launch_round(rid, args.seed)
 
     if args.no_debug:
         print("已跳过自动 debug（--no-debug），可稍后手动运行 scripts/run_pipeline.py")
