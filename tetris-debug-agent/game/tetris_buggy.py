@@ -188,6 +188,7 @@ class TetrisGame:
         cell_list = SHAPES[self.next_kind]
         board_w = C * cell_size
         pc, pr = board_w + side_width // 2 - cell_size, 130
+        self.canvas.delete(self._preview_tag)
         for cell in cell_list:
             cc, cr = cell
             x0 = pc + cc * cell_size // 2 + cell_size
