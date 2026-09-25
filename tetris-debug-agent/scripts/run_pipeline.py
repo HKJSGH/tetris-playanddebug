@@ -41,21 +41,13 @@ def _read_fixed() -> list[dict]:
     return []
 
 
-def _load_clues() -> dict[str, str]:
-    """catalog.yaml 现象号 → 注释线索（总结兜底描述；catalog 是 pipeline 合法输入）。"""
-    try:
-        from agent.nodes.common import load_catalog
-        cat = load_catalog() or {}
-    except Exception:  # noqa: BLE001 — catalog 缺失/损坏时总结退化为占位描述
-        return {}
-    return {p.get("id", ""): str(p.get("clue", "")).strip()
-            for p in cat.get("phenomena", []) if p.get("id")}
-
-
 def print_fix_report(before_ph: set[str], session_rounds: list[int]) -> None:
-    """debug 收尾总结：只写现象描述，不暴露 PH/Bug 编号——真实环境下 agent
-    不知道现象对应哪个预设 bug，编号仅作内部 key 使用。"""
-    clues = _load_clues()
+    """debug 收尾总结：agent 视角，只有自然语言问题文本。
+
+    agent 不知道现象目录/bug 清单：没有「未定位问题」列表（agent 不可能
+    知道自己漏了什么）；PH/B 编号是框架内部 key，绝不出现。未修完的差距
+    由出题方侧评估报告（score_eval --archive）呈现。
+    """
     fx = json.loads(FIXES_PATH.read_text(encoding="utf-8")) if FIXES_PATH.exists() else {}
     fixed = fx.get("fixed_phenomena", [])
     fixed_hyp = {f["phenomenon_id"]: str(f.get("hypothesis", "")).strip() for f in fixed}
@@ -63,16 +55,14 @@ def print_fix_report(before_ph: set[str], session_rounds: list[int]) -> None:
     session_fixed = [ph for ph in fixed_hyp if ph not in before_ph]
 
     def desc(ph: str) -> str:
-        # 已修复条目优先用诊断师归纳的现象描述（hypothesis），其余退回注释线索
-        return fixed_hyp.get(ph) or clues.get(ph, "") or "（未登记现象）"
+        return fixed_hyp.get(ph) or "（未知问题）"
 
     seen_attempts: dict[str, int] = {}
     for r in fx.get("rejected", []):
         if r.get("round_id") in session_rounds:
-            ph = r["phenomenon_id"]
-            seen_attempts[ph] = max(seen_attempts.get(ph, 0), r.get("attempts", 0) or 0)
-
-    unresolved = [ph for ph in clues if ph not in fixed_ids and ph not in seen_attempts]
+            p = str(r.get("problem", "")).strip()
+            if p:
+                seen_attempts[p] = max(seen_attempts.get(p, 0), r.get("attempts", 0) or 0)
 
     print("=" * 60)
     print("本次 debug 总结")
@@ -88,12 +78,8 @@ def print_fix_report(before_ph: set[str], session_rounds: list[int]) -> None:
             print(f"  - {desc(ph)}")
     if seen_attempts:
         print("✘ 本次已尝试修复但未通过测试验证（证据不足或补丁未达标）的问题：")
-        for ph, n in seen_attempts.items():
-            print(f"  - {desc(ph)}（尝试 {n} 次补丁）")
-    if unresolved:
-        print("？暂未找到充分证据、本次未能定位修复的问题：")
-        for ph in unresolved:
-            print(f"  - {desc(ph)}")
+        for p, n in seen_attempts.items():
+            print(f"  - {p}（尝试 {n} 次补丁）")
     print(f"累计已修复 {len(fixed_ids)} 项 bug")
     print("=" * 60)
 
@@ -153,11 +139,11 @@ def _digest(node: str, delta: dict) -> str:
     if node == "diagnostician":
         hyps = delta.get("hypotheses")
         if hyps is not None:
-            rows = [f"{h['phenomenon_id']}({h.get('suspect_function') or '未知函数'},"
+            rows = [f"{h.get('problem', '?')[:28]}({h.get('suspect_function') or '未知函数'},"
                     f"conf={h.get('confidence')})" for h in hyps]
             return f"假设清单 {len(hyps)} 条: {', '.join(rows) or '空'}"
         cur = delta.get("current_hypothesis")
-        return f"切换下一假设: {cur['phenomenon_id'] if cur else '无'}"
+        return f"切换下一假设: {cur.get('problem', '?')[:28] if cur else '无'}"
     if node == "patcher":
         blocks = (delta.get("patch") or {}).get("blocks") or []
         first = _trunc(blocks[0].get("search", ""), 60) if blocks else "无"
@@ -165,10 +151,12 @@ def _digest(node: str, delta: dict) -> str:
     if node == "tester":
         tr = delta.get("test_result") or {}
         line = f"测试[{tr.get('stage', '?')}] passed={tr.get('passed', '-')} failed={tr.get('failed', '-')}"
+        if tr.get("attributed"):
+            line += f" → ✔ 归因修复 {tr['attributed']}"
         if delta.get("fixed_phenomena"):
-            line += f" → ✔ 修复{[f['phenomenon_id'] for f in delta['fixed_phenomena']]}"
+            line += f" → 账本{[f['phenomenon_id'] for f in delta['fixed_phenomena']]}"
         if delta.get("rejected"):
-            line += f" → ✘ 否决{[r['phenomenon_id'] for r in delta['rejected']]}"
+            line += f" → ✘ 否决{[r.get('problem', '?')[:24] for r in delta['rejected']]}"
         if tr.get("error"):
             line += f" err={_trunc(tr['error'], 100)!r}"
         return line
@@ -229,11 +217,11 @@ def print_summary(final: dict) -> None:
     print(f"图步数 {final['tokens']['n_graph_steps']}  LLM 调用 {final['tokens']['n_llm_calls']}")
     print("假设清单:")
     for h in final.get("hypotheses") or []:
-        print(f"  {h.get('hypothesis_id', '?')} {h['phenomenon_id']} conf={h['confidence']} src={h.get('source')}")
+        print(f"  {h.get('hypothesis_id', '?')} {h.get('problem', '?')[:40]} conf={h['confidence']} src={h.get('source')}")
     for f in final.get("fixed_phenomena") or []:
-        print(f"  ✔ 修复 {f['phenomenon_id']}（suspect={f.get('suspect_function')}, attempts={f['attempts_used']}）")
+        print(f"  ✔ 修复 {f['phenomenon_id']}（{str(f.get('hypothesis', ''))[:40]}，suspect={f.get('suspect_function')}, attempts={f['attempts_used']}）")
     for r in final.get("rejected") or []:
-        print(f"  ✘ 否决 {r['phenomenon_id']}（{r.get('last_error', '')[:60]}）")
+        print(f"  ✘ 否决 {r.get('problem', '?')[:40]}（{str(r.get('last_error', ''))[:60]}）")
     eval_path = EVAL_DIR / f"round_{final.get('round_id')}.json"
     print(f"eval: {eval_path}")
     print("=" * 60)

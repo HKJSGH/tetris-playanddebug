@@ -18,8 +18,11 @@ def node_ingest(state: dict) -> dict:
     rejected_prior: list[str] = []
     if FIXES_PATH.exists():
         fx = json.loads(FIXES_PATH.read_text(encoding="utf-8"))
-        fixed_prior = [f["phenomenon_id"] for f in fx.get("fixed_phenomena", [])]
-        rejected_prior = sorted({r["phenomenon_id"] for r in fx.get("rejected", [])})
+        # 跨局记忆只给自然语言问题文本（PH 编号是框架内部 key，不进 prompt）
+        fixed_prior = sorted({str(f.get("hypothesis", "")).strip()
+                              for f in fx.get("fixed_phenomena", [])} - {""})
+        rejected_prior = sorted({str(r.get("problem", "")).strip()
+                                 for r in fx.get("rejected", [])} - {""})
     acc = TokenDelta()
     acc.step("ingest")
     return {

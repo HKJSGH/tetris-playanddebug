@@ -1,4 +1,4 @@
-r"""patcher — LLM 节点：单假设 + 嫌疑函数源码 → SEARCH/REPLACE 补丁。
+r"""patcher — LLM 节点：单假设（自然语言问题）+ 嫌疑函数源码 → SEARCH/REPLACE 补丁。
 
 兜底（Mock/无 key/解析失败）：patch 为空 → tester 判定该尝试失败。
 suspect_function 为空时给 LLM 全部函数名列表让它自行定位。
@@ -7,17 +7,18 @@ from __future__ import annotations
 
 import json
 
-from agent.nodes.common import catalog_by_ph, get_llm_for, TokenDelta
+from agent.nodes.common import get_llm_for, TokenDelta
 from agent.tools.llm import llm_available, parse_json_text
 
 SYSTEM = (
-    "你是资深游戏修复工程师。针对一个诊断假设，给出最小 SEARCH/REPLACE 补丁。\n"
+    "你是资深游戏修复工程师。针对一个诊断假设（玩家可感知的具体问题），"
+    "给出最小 SEARCH/REPLACE 补丁。\n"
     "约束：\n"
     "1. search 必须是目标源码中原样存在的连续片段（保持缩进），且在文件中恰好出现一次；\n"
     "2. replace 是修复后的完整片段；改动最小化，只修该假设对应的问题；\n"
     '3. 输出 JSON：{"blocks": [{"search": "...", "replace": "..."}], "note": "修复说明"}\n'
-    "现象线索（clue）是代码遗留备注，需结合嫌疑函数源码理解其指向的具体问题；只修该问题。"
-    "不要输出多余解释。"
+    "问题（problem）是 QA 从证据归纳的现象描述，需结合嫌疑函数源码理解其指向的"
+    "具体问题；只修该问题。不要输出多余解释。"
 )
 
 
@@ -34,8 +35,6 @@ def node_patcher(state: dict) -> dict:
     if mode == "mock" or not llm_available("text"):
         return empty
 
-    catalog = catalog_by_ph()
-    ph = hyp.get("phenomenon_id", "")
     fn = hyp.get("suspect_function", "")
     if fn and fn in srcmap:
         fn_src = srcmap[fn]
@@ -48,10 +47,8 @@ def node_patcher(state: dict) -> dict:
 
     llm = get_llm_for(mode, "text")
     user = {
-        "现象": {
-            "id": ph,
-            "clue": catalog.get(ph, {}).get("clue", ""),
-            "observable_via": catalog.get(ph, {}).get("observable_via", []),
+        "问题": {
+            "problem": hyp.get("problem", ""),
         },
         "假设": {
             "suspect_function": fn or "未定位",

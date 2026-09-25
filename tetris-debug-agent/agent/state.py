@@ -27,7 +27,7 @@ def merge_tokens(a: dict | None, b: dict | None) -> dict:
 
 class Hypothesis(TypedDict, total=False):
     hypothesis_id: str
-    phenomenon_id: str          # PH-xx
+    problem: str                # 自然语言问题描述（agent 不知现象目录，由证据归纳）
     suspect_function: str
     confidence: float
     rationale: str
@@ -53,8 +53,8 @@ class PipelineState(TypedDict, total=False):
     catalog: dict
     srcmap: dict                    # 函数名 → 源码段
     constants_src: dict             # 顶层常量名 → 源码段
-    fixed_prior: list[str]          # 跨局记忆：fixes.json 已修复 PH
-    rejected_prior: list[str]       # 跨局记忆：历史局已否决 PH（新证据可重试）
+    fixed_prior: list[str]          # 跨局记忆：fixes.json 已修复问题的自然语言描述
+    rejected_prior: list[str]       # 跨局记忆：历史局已否决问题的自然语言描述
 
     # 证据节点产物
     vision_findings: list[dict]     # [{ticket_id, image, observations}]

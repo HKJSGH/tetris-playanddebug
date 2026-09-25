@@ -33,12 +33,12 @@ def node_wrapup(state: dict) -> dict:
         if f["phenomenon_id"] not in known_fixed:
             data["fixed_phenomena"].append(f)
             known_fixed.add(f["phenomenon_id"])
-    known_rej = {(r["phenomenon_id"], r.get("round_id")) for r in data.get("rejected", [])}
+    known_rej = {(r.get("problem"), r.get("round_id")) for r in data.get("rejected", [])}
     for r in rejected:
         r = {**r, "round_id": round_id}
-        if (r["phenomenon_id"], round_id) not in known_rej:
+        if (r.get("problem"), round_id) not in known_rej:
             data.setdefault("rejected", []).append(r)
-            known_rej.add((r["phenomenon_id"], round_id))
+            known_rej.add((r.get("problem"), round_id))
     remaining = sorted(set(catalog) - known_fixed)
     data["remaining"] = remaining
     data["status"] = "converged" if not remaining else "open"
@@ -47,26 +47,27 @@ def node_wrapup(state: dict) -> dict:
 
     # ---- eval/round_N.json ----
     hypotheses = state.get("hypotheses") or []
-    rejected_ph = {r["phenomenon_id"] for r in rejected}
-    fixed_ph = {f["phenomenon_id"] for f in fixed}
-    attempts_by_ph = {
-        **{r["phenomenon_id"]: r.get("attempts", 0) for r in rejected},
-        **{f["phenomenon_id"]: f.get("attempts_used", 0) for f in fixed},
+    rejected_problems = {str(r.get("problem", "")).strip() for r in rejected}
+    fixed_problems = {str(f.get("hypothesis", "")).strip() for f in fixed}
+    attempts_by_problem = {
+        **{str(r.get("problem", "")).strip(): r.get("attempts", 0) for r in rejected},
+        **{str(f.get("hypothesis", "")).strip(): f.get("attempts_used", 0) for f in fixed},
     }
     hyp_rows = []
     for i, h in enumerate(hypotheses, start=1):
+        problem = str(h.get("problem", "")).strip()
         outcome = (
-            "fixed" if h["phenomenon_id"] in fixed_ph
-            else "rejected" if h["phenomenon_id"] in rejected_ph
+            "fixed" if problem and problem in fixed_problems
+            else "rejected" if problem and problem in rejected_problems
             else "deferred"
         )
         hyp_rows.append({
             "rank": i,
-            "phenomenon_id": h["phenomenon_id"],
+            "problem": problem,
             "confidence": h.get("confidence"),
             "source": h.get("source", ""),
             "outcome": outcome,
-            "attempts": attempts_by_ph.get(h["phenomenon_id"], 0) if outcome != "deferred" else 0,
+            "attempts": attempts_by_problem.get(problem, 0) if outcome != "deferred" else 0,
         })
     report = state.get("probe_report") or {}
     meta = state.get("round_data").meta if state.get("round_data") else {}
