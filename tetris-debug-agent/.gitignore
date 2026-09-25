@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# 实验归档（体积大，不入库；评估报告 eval_reports/ 单独入库）
+archives/
+
 # Python 缓存
 __pycache__/
 *.py[cod]
