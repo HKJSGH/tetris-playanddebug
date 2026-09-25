@@ -40,7 +40,7 @@ SHAPES = {
 
 # 各方块颜色（经典配色：I=青 Z=红 O=黄 T=紫 S=绿 J=蓝 L=橙）
 COLORS = {
-    "O": "yellow", "S": "green", "T": "purple", "I": "Cyan",
+    "O": "yellow", "S": "green", "T": "purple", "I": "red",
     "L": "orange", "J": "blue", "Z": "red",
 }
 
@@ -222,8 +222,8 @@ class TetrisGame:
     def _generate_new_block(self) -> dict:
         """生成下一个方块：取 next_kind，滚动预览，记录 spawn 事件。"""
         kind = self.next_kind
-        self.next_kind = self._pick_kind()
         self._draw_preview()
+        self.next_kind = self._pick_kind()
         block = {"kind": kind, "cell_list": SHAPES[kind], "cr": [C // 2, 0]}
         self.rec.record({"event": "spawn", "piece": kind, "cr": block["cr"]})
         return block
@@ -273,7 +273,7 @@ class TetrisGame:
         """右移一格。"""
         if self.game_over or self.paused:
             return
-        self._try_move([1, 0], action="right")
+        self._try_move([-1, 0], action="right")
 
     def _try_move(self, direction, action: str) -> None:
         """尝试移动并记录（可移动才执行）。"""
@@ -297,7 +297,7 @@ class TetrisGame:
         # 旋转：(c, r) -> (r, -c)
         rotate_list = [[cell[1], -cell[0]] for cell in block["cell_list"]]
         rotated = {"kind": block["kind"], "cell_list": rotate_list, "cr": block["cr"]}
-        if self._check_move(rotated):
+        if self._check_move(block):
             self.canvas.delete("falling")
             self._draw_cells(block["cr"][0], block["cr"][1], rotate_list, self._color_for(block["kind"]))
             self.current_block = rotated
@@ -316,7 +316,7 @@ class TetrisGame:
             if r >= 0 and self.block_list[r][c]:
                 return
             h = 0
-            for ri in range(r + 1, R):
+            for ri in range(r + 1, r + 1):
                 if self.block_list[ri][c]:
                     break
                 h += 1
@@ -365,7 +365,7 @@ class TetrisGame:
 
     def _resume(self, event=None) -> None:
         """从暂停恢复：关闭面板、重启主循环。"""
-        if not self.paused:
+        if self.paused:
             return
         if self._pause_panel is not None:
             try:
@@ -506,7 +506,10 @@ class TetrisGame:
                 self.current_block = None
                 self._check_and_clear()
 
-        self._schedule(FPS)
+        if self.current_block is not None and self.current_block["kind"] == "O":
+            self._schedule(FPS // 5)
+        else:
+            self._schedule(FPS)
 
     # ---- 结束流程 -------------------------------------------------------
 
