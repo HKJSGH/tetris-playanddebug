@@ -36,9 +36,9 @@ flowchart LR
 
 - **ingest**：加载对局数据，运行 12 个纯代码探针（三态：signal / no_signal / no_evidence），读入 fixes.json 跨局记忆
 - **vision / feedback**：截图 + 文字反馈/报错 → 结构化发现，与探针证据三路互补
-- **diagnostician**：证据 × 现象目录 → 假设清单（现象号 + 嫌疑函数 + 置信度），LLM 产出经归一化校验，不合法直接丢弃
+- **diagnostician**：三路证据 → 自然语言假设清单（问题描述 + 嫌疑函数 + 置信度），**agent 不知道 bug 清单**，LLM 产出经归一化校验，不合法直接丢弃
 - **patcher**：只拿嫌疑函数源码生成 SEARCH/REPLACE 补丁；无嫌疑函数时注入全函数源码防碎片补丁
-- **tester**：补丁应用到注入版游戏 → 跑受控测试集 → 通过保留、失败从备份回滚；路由控制「重试 ≤3 次 → 换假设 → 结账」
+- **tester**：补丁应用到注入版游戏 → 全量受控测试与基线对比归因（未修复 bug 的测试整文件转绿 = 归因修复）→ golden 等价回归 → 通过保留、失败从备份回滚并回传差异摘要；路由控制「重试 ≤3 次 → 换假设 → 结账」
 - **wrapup**：合并 fixes.json（fixed 累积 / rejected 带局号 / remaining / status）+ 写每局评估
 
 ## 目录结构
@@ -68,7 +68,7 @@ tetris-playanddebug/
 |---|---|
 | **真实 bug，非模拟** | 12 个都是真实编码错误（如移动方向取反、暂停后恢复失效），用户试玩可验证，有对应红→绿测试 |
 | **目录物理隔离** | 出题方与 Agent 沙盒分离 + 路径 jail；truth_map/注入记录绝不进任何 prompt，杜绝「看答案」 |
-| **受控测试集** | Agent 自写测试不作为通过依据；每次只跑「已修复 bug ∪ 当前假设」的测试，修完的回归保持绿 |
+| **受控测试集** | Agent 自写测试不作为通过依据；每补丁跑全量测试，未修复 bug 的测试**整文件转绿**才归因修复，已修复测试变红即回滚 |
 | **golden 等价回归** | 用干净版录制 12 个单机制场景回放比对，防止「修 A 坏 B」；manifest 门控避免未收敛期永远红 |
 | **补丁可回滚** | SEARCH 串必须恰好命中一次才应用（fail-fast），应用前备份，失败自动还原 |
 | **跨局记忆** | fixes.json 累积修复/否决（带局号）；diagnostician 拿到「已修复勿提/已否决谨慎重提」，同一现象跨局可凭新证据重试 |
@@ -98,7 +98,7 @@ python scripts/run_pipeline.py --campaign --mode llm --verbose
 python scripts/run_pipeline.py --round 5 --mode llm   # 也可单局运行
 ```
 
-debug 结束打印玩家视角修复总结（不带内部编号）：本次确认修复 / 此前已修复 / 尝试未通过 / 证据不足四组。
+debug 结束打印玩家视角修复总结（不带内部编号）：本次确认修复 / 此前已修复 / 尝试未通过三组；未修完的差距由出题方侧评估报告呈现。
 
 **3. 查看评估**（每局汇总 + ASCII 收敛曲线 + token 成本账）：
 
@@ -108,7 +108,20 @@ python ../tetris-game/scripts/score_eval.py --out data/eval_report.md
 
 无 API key 时加 `--mode mock` 可零成本验证全图流转。
 
+**终止实验**（未收敛中途结束也可用）——归档本次全部运行数据并把游戏回退到
+原始 12-bug 版，作为 agent 迭代平行对比的干净起点：
+
+```bash
+python scripts/archive_reset.py            # 默认归档当前实验
+python scripts/archive_reset.py --tag 实验名 --yes   # 指定标签并免确认
+```
+
 ## 实测样例（OpenRouter 真实运行）
+
+> 下表为早期架构（证据 × 现象目录版本）的实测；现象号为框架内部编号。
+> 当前架构（agent 不知 bug 清单、tester 全量归因制）已另跑实验验证：
+> 真实游玩 4 局中 agent 自主确认修复 3 项（预览刷新顺序 / 右移方向取反 / 旋转碰撞检查），
+> clean 对照局零误报。
 
 | 局 | 数据类型 | 假设 | 结果 | tokens(入/出) | 图步 |
 |---|---|---|---:|---|---:|
