@@ -222,8 +222,8 @@ class TetrisGame:
     def _generate_new_block(self) -> dict:
         """生成下一个方块：取 next_kind，滚动预览，记录 spawn 事件。"""
         kind = self.next_kind
-        self.next_kind = self._pick_kind()
         self._draw_preview()
+        self.next_kind = self._pick_kind()
         block = {"kind": kind, "cell_list": SHAPES[kind], "cr": [C // 2, 0]}
         self.rec.record({"event": "spawn", "piece": kind, "cr": block["cr"]})
         return block
@@ -273,7 +273,7 @@ class TetrisGame:
         """右移一格。"""
         if self.game_over or self.paused:
             return
-        self._try_move([1, 0], action="right")
+        self._try_move([-1, 0], action="right")
 
     def _try_move(self, direction, action: str) -> None:
         """尝试移动并记录（可移动才执行）。"""
@@ -297,7 +297,7 @@ class TetrisGame:
         # 旋转：(c, r) -> (r, -c)
         rotate_list = [[cell[1], -cell[0]] for cell in block["cell_list"]]
         rotated = {"kind": block["kind"], "cell_list": rotate_list, "cr": block["cr"]}
-        if self._check_move(rotated):
+        if self._check_move(block):
             self.canvas.delete("falling")
             self._draw_cells(block["cr"][0], block["cr"][1], rotate_list, self._color_for(block["kind"]))
             self.current_block = rotated
