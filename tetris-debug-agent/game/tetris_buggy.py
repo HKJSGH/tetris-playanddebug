@@ -223,8 +223,8 @@ class TetrisGame:
     def _generate_new_block(self) -> dict:
         """生成下一个方块：取 next_kind，滚动预览，记录 spawn 事件。"""
         kind = self.next_kind
-        self._draw_preview()
         self.next_kind = self._pick_kind()
+        self._draw_preview()
         block = {"kind": kind, "cell_list": SHAPES[kind], "cr": [C // 2, 0]}
         self.rec.record({"event": "spawn", "piece": kind, "cr": block["cr"]})
         return block
