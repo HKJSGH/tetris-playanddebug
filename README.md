@@ -41,6 +41,30 @@ flowchart LR
 - **tester**：补丁应用到注入版游戏 → 全量受控测试与基线对比归因（未修复 bug 的测试整文件转绿 = 归因修复）→ golden 等价回归 → 通过保留、失败从备份回滚并回传差异摘要；路由控制「重试 ≤3 次 → 换假设 → 结账」
 - **wrapup**：合并 fixes.json（fixed 累积 / rejected 带局号 / remaining / status）+ 写每局评估
 
+> 泄漏防御贯穿始终：现象目录（catalog）只含代码遗留备注式弱线索，且已不进任何 LLM prompt——diagnostician 只见三路证据归纳出的自然语言；PH-xx 编号与 truth_map 仅存在于框架内部（tester 归因 / 收敛判定 / 评分），绝不出现在假设、补丁与修复总结中。
+
+## 界面与演示
+
+<!-- 截图占位：建议截图后上传到 GitHub issue/comment 拿到 user-attachments URL，替换下方 src -->
+
+**游戏界面**（注入版游戏，异常现象玩家可亲自试玩验证）：
+
+```markdown
+![游戏界面](docs/screenshots/game.png)
+```
+
+**游戏内反馈界面**（游玩中点「反馈」按钮提交文字描述与异常截图）：
+
+```markdown
+![反馈界面](docs/screenshots/feedback.png)
+```
+
+**Agent 执行输出**（黑板流逐节点打印 + 修复总结）：
+
+```markdown
+![执行输出](docs/screenshots/pipeline.png)
+```
+
 ## 目录结构
 
 ```
@@ -98,6 +122,8 @@ python scripts/run_pipeline.py --campaign --mode llm --verbose
 python scripts/run_pipeline.py --round 5 --mode llm   # 也可单局运行
 ```
 
+<!-- 截图占位：执行输出粘贴处 -->
+
 debug 结束打印玩家视角修复总结（不带内部编号）：本次确认修复 / 此前已修复 / 尝试未通过三组；未修完的差距由出题方侧评估报告呈现。
 
 **3. 查看评估**（每局汇总 + ASCII 收敛曲线 + token 成本账）：
@@ -118,10 +144,11 @@ python scripts/archive_reset.py --tag 实验名 --yes   # 指定标签并免确�
 
 ## 实测样例（OpenRouter 真实运行）
 
-> 下表为早期架构（证据 × 现象目录版本）的实测；现象号为框架内部编号。
-> 当前架构（agent 不知 bug 清单、tester 全量归因制）已另跑实验验证：
-> 真实游玩 4 局中 agent 自主确认修复 3 项（预览刷新顺序 / 右移方向取反 / 旋转碰撞检查），
-> clean 对照局零误报。
+> 下表为早期架构（证据 × 现象目录版本）的实测。当前架构（agent 不知 bug 清单、
+> tester 全量归因制）的真实游玩实验已推进 7 局，agent 自主确认修复 **7 项**：
+> O 块下落间隔异常、预览区叠画残影、预览刷新顺序、右移方向取反、旋转碰撞检查
+> 未检查新姿态、硬降不落地、暂停后无法恢复（含 1 项由探针告警路径发现）；
+> clean 对照局零误报，多次错误假设被 tester 正确否决并留痕。
 
 | 局 | 数据类型 | 假设 | 结果 | tokens(入/出) | 图步 |
 |---|---|---|---:|---|---:|
