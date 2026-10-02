@@ -132,6 +132,14 @@ debug 结束打印玩家视角修复总结（不带内部编号）：本次确�
 python ../tetris-game/scripts/score_eval.py --out data/eval_report.md
 ```
 
+或生成可视化 HTML 报告（KPI 卡片 / 收敛曲线 / 修复时间线 / 12-bug 清单 / 成本构成，
+自包含单文件，离线可开）：
+
+```bash
+python ../tetris-game/scripts/gen_html_report.py            # 当前实验 → eval_reports/report.html
+python ../tetris-game/scripts/gen_html_report.py --archive archives/<归档名>   # 归档实验
+```
+
 无 API key 时加 `--mode mock` 可零成本验证全图流转。
 
 **终止实验**（未收敛中途结束也可用）——归档本次全部运行数据并把游戏回退到

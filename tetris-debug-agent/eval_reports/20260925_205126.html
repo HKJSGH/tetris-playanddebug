@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>实验报告：20260925_205126</title>
+<style>
+:root { --fg:#1f2328; --muted:#57606a; --line:#d0d7de; --bg:#fff; --bg2:#f6f8fa;
+  --green:#1a7f37; --red:#cf222e; --blue:#0969da; --accent:#8250df; }
+* { box-sizing:border-box; }
+body { font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  color:var(--fg); background:var(--bg); margin:0; padding:32px 16px; line-height:1.55; }
+.wrap { max-width:980px; margin:0 auto; }
+h1 { font-size:24px; border-bottom:2px solid var(--line); padding-bottom:10px; }
+h2 { font-size:18px; margin:34px 0 12px; }
+.date { color:var(--muted); font-size:13px; }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+.kpi { background:var(--bg2); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+.kpi-v { font-size:22px; font-weight:600; }
+.kpi-v .dim { color:var(--muted); font-size:15px; font-weight:400; }
+.kpi-l { font-size:12px; color:var(--muted); margin-top:2px; }
+.kpi-s { font-size:11px; color:var(--muted); margin-top:2px; }
+.kpi-green .kpi-v { color:var(--green); }
+.kpi-red .kpi-v { color:var(--red); }
+.chart { width:100%; height:auto; background:var(--bg2); border:1px solid var(--line);
+  border-radius:8px; margin-top:8px; }
+.grid { stroke:#e1e4e8; stroke-width:1; }
+.conv { fill:none; stroke:var(--blue); stroke-width:2.5; }
+.dot { fill:var(--blue); }
+.target { stroke:var(--red); stroke-width:1; stroke-dasharray:6 4; }
+.target-t { fill:var(--red); }
+.tick { font-size:11px; fill:var(--muted); }
+.tl-row { display:flex; align-items:baseline; gap:10px; padding:6px 0;
+  border-bottom:1px dashed var(--line); }
+.tl-badge { font-size:11px; padding:1px 8px; border-radius:10px; color:#fff; flex:none; }
+.tl-fix .tl-badge { background:var(--green); }
+.tl-stall .tl-badge { background:var(--red); }
+.tl-clean .tl-badge { background:var(--muted); }
+.tl-rid { font-weight:600; flex:none; width:36px; }
+.tbl { border-collapse:collapse; width:100%; font-size:13px; margin-top:8px; }
+.tbl th,.tbl td { border:1px solid var(--line); padding:6px 9px; text-align:left; }
+.tbl th { background:var(--bg2); font-weight:600; }
+.bar-row { display:flex; align-items:center; gap:10px; margin:6px 0; }
+.bar-name { width:110px; font-size:13px; text-align:right; color:var(--muted); flex:none; }
+.bar-track { flex:1; background:var(--bg2); border-radius:6px; height:18px; overflow:hidden; }
+.bar-fill { display:block; height:100%; background:linear-gradient(90deg,var(--blue),var(--accent));
+  border-radius:6px; }
+.bar-val { width:170px; font-size:12px; color:var(--muted); flex:none; }
+.st-fixed { color:var(--green); font-weight:600; }
+.st-rejected { color:var(--red); font-weight:600; }
+.st-unknown { color:var(--muted); }
+.mono { font-family:Consolas,monospace; }
+.mono-sm { font-family:Consolas,monospace; font-size:12px; }
+.muted { color:var(--muted); font-size:12px; }
+.dim { color:var(--muted); font-weight:400; }
+details { border:1px solid var(--line); border-radius:8px; padding:8px 14px; margin:8px 0;
+  background:var(--bg); }
+summary { cursor:pointer; font-weight:600; font-size:13px; }
+.ok { color:var(--green); } .bad { color:var(--red); }
+footer { margin-top:40px; color:var(--muted); font-size:12px;
+  border-top:1px solid var(--line); padding-top:12px; }
+</style></head><body><div class="wrap">
+<h1>实验报告：20260925_205126<span class="date">　2026-09-26</span></h1>
+<div class="kpis"><div class="kpi "><div class="kpi-v">7<span class='dim'>/12</span></div><div class="kpi-l">累计修复</div><div class="kpi-s">局数 8，局均 0.88</div></div><div class="kpi "><div class="kpi-v">✘ open（remaining 9）</div><div class="kpi-l">收敛状态</div></div><div class="kpi "><div class="kpi-v">7 / 12（58%）</div><div class="kpi-l">假设命中率</div><div class="kpi-s">确认 Σ7 / 误报 Σ5</div></div><div class="kpi "><div class="kpi-v">66 次调用</div><div class="kpi-l">总成本</div><div class="kpi-s">74,848 tokens · 953s</div></div><div class="kpi "><div class="kpi-v">Σ0</div><div class="kpi-l">回归</div></div></div>
+
+<h2>收敛曲线（目标 12 bug）</h2>
+<svg viewBox="0 0 760 280" class="chart" role="img" aria-label="收敛曲线"><line x1="46" y1="246.0" x2="740" y2="246.0" class="grid"/><line x1="46" y1="188.5" x2="740" y2="188.5" class="grid"/><line x1="46" y1="131.0" x2="740" y2="131.0" class="grid"/><line x1="46" y1="73.5" x2="740" y2="73.5" class="grid"/><line x1="46" y1="16.0" x2="740" y2="16.0" class="grid"/><text x="38" y="250.0" class="tick" text-anchor="end">0</text><text x="38" y="192.5" class="tick" text-anchor="end">3</text><text x="38" y="135.0" class="tick" text-anchor="end">6</text><text x="38" y="77.5" class="tick" text-anchor="end">9</text><text x="38" y="20.0" class="tick" text-anchor="end">12</text><line x1="46" y1="16.0" x2="740" y2="16.0" class="target"/><text x="740" y="10.0" class="tick target-t" text-anchor="end">目标 12</text><polyline points="46.0,226.8 132.8,226.8 132.8,207.7 219.5,207.7 219.5,188.5 306.2,188.5 306.2,169.3 393.0,169.3 393.0,150.2 479.8,150.2 479.8,150.2 566.5,150.2 566.5,131.0 653.2,131.0 653.2,111.8" class="conv"/><circle cx="46.0" cy="226.8" r="3.5" class="dot"><title>R1: 1/12</title></circle><circle cx="132.8" cy="207.7" r="3.5" class="dot"><title>R2: 2/12</title></circle><circle cx="219.5" cy="188.5" r="3.5" class="dot"><title>R3: 3/12</title></circle><circle cx="306.2" cy="169.3" r="3.5" class="dot"><title>R4: 4/12</title></circle><circle cx="393.0" cy="150.2" r="3.5" class="dot"><title>R5: 5/12</title></circle><circle cx="479.8" cy="150.2" r="3.5" class="dot"><title>R6: 5/12</title></circle><circle cx="566.5" cy="131.0" r="3.5" class="dot"><title>R7: 6/12</title></circle><circle cx="653.2" cy="111.8" r="3.5" class="dot"><title>R8: 7/12</title></circle><text x="46.0" y="264" class="tick" text-anchor="middle">R1</text><text x="132.8" y="264" class="tick" text-anchor="middle">R2</text><text x="219.5" y="264" class="tick" text-anchor="middle">R3</text><text x="306.2" y="264" class="tick" text-anchor="middle">R4</text><text x="393.0" y="264" class="tick" text-anchor="middle">R5</text><text x="479.8" y="264" class="tick" text-anchor="middle">R6</text><text x="566.5" y="264" class="tick" text-anchor="middle">R7</text><text x="653.2" y="264" class="tick" text-anchor="middle">R8</text></svg>
+
+<h2>修复时间线</h2>
+<div class="tl-row tl-stall"><span class="tl-badge">受阻</span><span class="tl-rid">R1</span><span class="tl-body">—<span class="dim">（累计 1/12）</span></span></div><div class="tl-row tl-stall"><span class="tl-badge">受阻</span><span class="tl-rid">R2</span><span class="tl-body">—<span class="dim">（累计 2/12）</span></span></div><div class="tl-row tl-stall"><span class="tl-badge">受阻</span><span class="tl-rid">R3</span><span class="tl-body">—<span class="dim">（累计 3/12）</span></span></div><div class="tl-row tl-stall"><span class="tl-badge">受阻</span><span class="tl-rid">R4</span><span class="tl-body">—<span class="dim">（累计 4/12）</span></span></div><div class="tl-row tl-stall"><span class="tl-badge">受阻</span><span class="tl-rid">R5</span><span class="tl-body">—<span class="dim">（累计 5/12）</span></span></div><div class="tl-row tl-stall"><span class="tl-badge">受阻</span><span class="tl-rid">R6</span><span class="tl-body">—<span class="dim">（累计 5/12）</span></span></div><div class="tl-row tl-stall"><span class="tl-badge">受阻</span><span class="tl-rid">R7</span><span class="tl-body">—<span class="dim">（累计 6/12）</span></span></div><div class="tl-row tl-stall"><span class="tl-badge">受阻</span><span class="tl-rid">R8</span><span class="tl-body">—<span class="dim">（累计 7/12）</span></span></div>
+
+<h2>12-bug 修复清单</h2>
+<table class="tbl">
+<tr><th>Bug</th><th>名称</th><th>结果</th><th>相关局</th><th>补丁尝试</th><th>证据通道</th><th>嫌疑函数</th></tr>
+<tr><td class="mono">B01</td><td>O 块下落 5 倍速</td><td><span class="st-unknown">？未定位</span></td><td>-</td><td>—</td><td>telemetry</td><td>-</td></tr><tr><td class="mono">B02</td><td>旋转穿块</td><td><span class="st-fixed">✔ 修复</span></td><td>-</td><td>2 次补丁</td><td>telemetry</td><td>_on_rotate</td></tr><tr><td class="mono">B03</td><td>消行不加分</td><td><span class="st-unknown">？未定位</span></td><td>-</td><td>—</td><td>telemetry</td><td>-</td></tr><tr><td class="mono">B04</td><td>堆满顶部不结束</td><td><span class="st-unknown">？未定位</span></td><td>-</td><td>—</td><td>telemetry</td><td>-</td></tr><tr><td class="mono">B05</td><td>右键向左移动</td><td><span class="st-fixed">✔ 修复</span></td><td>-</td><td>2 次补丁</td><td>telemetry</td><td>_on_right</td></tr><tr><td class="mono">B06</td><td>I 块颜色错乱</td><td><span class="st-unknown">？未定位</span></td><td>-</td><td>—</td><td>screenshot/feedback</td><td>-</td></tr><tr><td class="mono">B07</td><td>预览与实际不符</td><td><span class="st-fixed">✔ 修复</span></td><td>-</td><td>1 次补丁</td><td>telemetry</td><td>_generate_new_block</td></tr><tr><td class="mono">B08</td><td>多行同时满只消一行</td><td><span class="st-unknown">？未定位</span></td><td>-</td><td>—</td><td>telemetry</td><td>-</td></tr><tr><td class="mono">B09</td><td>暂停后无法恢复</td><td><span class="st-unknown">？未定位</span></td><td>-</td><td>—</td><td>telemetry</td><td>-</td></tr><tr><td class="mono">B10</td><td>硬降失效</td><td><span class="st-unknown">？未定位</span></td><td>-</td><td>—</td><td>telemetry</td><td>-</td></tr><tr><td class="mono">B11</td><td>预览区残影叠加</td><td><span class="st-unknown">？未定位</span></td><td>-</td><td>—</td><td>screenshot/feedback</td><td>-</td></tr><tr><td class="mono">B12</td><td>重新开始后窗口位置重置</td><td><span class="st-unknown">？未定位</span></td><td>-</td><td>—</td><td>feedback</td><td>-</td></tr>
+</table>
+<p class="muted">注：4 条已否决假设无探针来源、无法归因到具体 bug，未计入「已尝试未通过」。</p>
+
+<h2>每局汇总</h2>
+<table class="tbl">
+<tr><th>局</th><th>模式</th><th>确认修复(PH→B)</th><th>提出</th><th>误报</th><th>累计</th>
+<th>LLM调用</th><th>tokens(入/出)</th><th>图步</th><th>时长s</th></tr>
+<tr><td>R1</td><td>llm</td><td class="mono-sm">—</td><td>4</td><td>1</td><td>1</td><td>12</td><td>12,275/1,614</td><td>23</td><td>207.6</td></tr><tr><td>R2</td><td>llm</td><td class="mono-sm">—</td><td>2</td><td>1</td><td>2</td><td>12</td><td>10,958/1,969</td><td>23</td><td>262.2</td></tr><tr><td>R3</td><td>llm</td><td class="mono-sm">—</td><td>5</td><td>0</td><td>3</td><td>4</td><td>3,226/992</td><td>8</td><td>67.2</td></tr><tr><td>R4</td><td>llm</td><td class="mono-sm">—</td><td>3</td><td>0</td><td>4</td><td>3</td><td>2,009/628</td><td>6</td><td>66.3</td></tr><tr><td>R5</td><td>llm</td><td class="mono-sm">—</td><td>3</td><td>0</td><td>5</td><td>3</td><td>2,048/515</td><td>6</td><td>32.0</td></tr><tr><td>R6</td><td>llm</td><td class="mono-sm">—</td><td>2</td><td>2</td><td>5</td><td>18</td><td>16,694/2,188</td><td>37</td><td>219.2</td></tr><tr><td>R7</td><td>llm</td><td class="mono-sm">—</td><td>2</td><td>1</td><td>6</td><td>11</td><td>10,133/1,179</td><td>23</td><td>84.7</td></tr><tr><td>R8</td><td>llm</td><td class="mono-sm">—</td><td>1</td><td>0</td><td>7</td><td>3</td><td>8,285/135</td><td>6</td><td>14.1</td></tr>
+</table>
+
+<h2>成本构成（tokens，按节点）</h2>
+<div class="bar-row"><span class="bar-name">patcher</span><span class="bar-track"><span class="bar-fill" style="width:100.0%"></span></span><span class="bar-val">82%（61,417）</span></div><div class="bar-row"><span class="bar-name">diagnostician</span><span class="bar-track"><span class="bar-fill" style="width:12.7%"></span></span><span class="bar-val">10%（7,800）</span></div><div class="bar-row"><span class="bar-name">feedback</span><span class="bar-track"><span class="bar-fill" style="width:4.7%"></span></span><span class="bar-val">4%（2,875）</span></div><div class="bar-row"><span class="bar-name">vision</span><span class="bar-track"><span class="bar-fill" style="width:4.5%"></span></span><span class="bar-val">4%（2,756）</span></div>
+
+<h2>每局假设明细</h2>
+<details><summary>R1（4 条假设，12 次调用）</summary><table class="tbl"><tr><th>问题（自然语言）</th><th>归因</th><th>结果</th><th>尝试</th><th>置信度</th></tr><tr><td>预览区显示的方块与下一帧实际生成的方块不一致</td><td class="mono-sm">未归因</td><td><span class="st-rejected">✘ 未通过</span></td><td>8</td><td>0.9</td></tr><tr><td>O型方块下落间隔异常（仅为其他方块的0.23倍）</td><td class="mono-sm">未归因</td><td><span class="st-fixed">✔ 已修复</span></td><td>1</td><td>0.7</td></tr><tr><td>方块旋转后可能超出边界</td><td class="mono-sm">未归因</td><td><span class="st-unknown">－ 未验证</span></td><td>-</td><td>0.6</td></tr><tr><td>游戏暂停后未恢复直接关闭窗口</td><td class="mono-sm">未归因</td><td><span class="st-unknown">－ 未验证</span></td><td>-</td><td>0.5</td></tr></table></details><details><summary>R2（2 条假设，12 次调用）</summary><table class="tbl"><tr><th>问题（自然语言）</th><th>归因</th><th>结果</th><th>尝试</th><th>置信度</th></tr><tr><td>游戏窗口在暂停后异常关闭</td><td class="mono-sm">未归因</td><td><span class="st-rejected">✘ 未通过</span></td><td>8</td><td>0.9</td></tr><tr><td>预览区显示两个不同颜色的方块叠加</td><td class="mono-sm">未归因</td><td><span class="st-fixed">✔ 已修复</span></td><td>1</td><td>0.8</td></tr></table></details><details><summary>R3（5 条假设，4 次调用）</summary><table class="tbl"><tr><th>问题（自然语言）</th><th>归因</th><th>结果</th><th>尝试</th><th>置信度</th></tr><tr><td>预览区显示的方块与当前帧实际生成的方块一致（应为下一帧生成）</td><td class="mono-sm">未归因</td><td><span class="st-fixed">✔ 已修复</span></td><td>2</td><td>0.9</td></tr><tr><td>按右移键时方块向左移动</td><td class="mono-sm">未归因</td><td><span class="st-unknown">－ 未验证</span></td><td>-</td><td>0.85</td></tr><tr><td>方块旋转后与边界/占格重叠</td><td class="mono-sm">未归因</td><td><span class="st-unknown">－ 未验证</span></td><td>-</td><td>0.8</td></tr><tr><td>硬着陆操作未使方块下落</td><td class="mono-sm">未归因</td><td><span class="st-unknown">－ 未验证</span></td><td>-</td><td>0.75</td></tr><tr><td>游戏暂停后窗口异常关闭</td><td class="mono-sm">未归因</td><td><span class="st-unknown">－ 未验证</span></td><td>-</td><td>0.7</td></tr></table></details><details><summary>R4（3 条假设，3 次调用）</summary><table class="tbl"><tr><th>问题（自然语言）</th><th>归因</th><th>结果</th><th>尝试</th><th>置信度</th></tr><tr><td>按下右键时方块向左移动而非向右移动</td><td class="mono-sm">未归因</td><td><span class="st-fixed">✔ 已修复</span></td><td>1</td><td>0.95</td></tr><tr><td>硬着陆时方块未移动</td><td class="mono-sm">未归因</td><td><span class="st-unknown">－ 未验证</span></td><td>-</td><td>0.9</td></tr><tr><td>游戏窗口在暂停后异常关闭</td><td class="mono-sm">未归因</td><td><span class="st-unknown">－ 未验证</span></td><td>-</td><td>0.8</td></tr></table></details><details><summary>R5（3 条假设，3 次调用）</summary><table class="tbl"><tr><th>问题（自然语言）</th><th>归因</th><th>结果</th><th>尝试</th><th>置信度</th></tr><tr><td>旋转后的方块与边界重叠导致出界</td><td class="mono-sm">未归因</td><td><span class="st-fixed">✔ 已修复</span></td><td>1</td><td>0.9</td></tr><tr><td>游戏暂停后窗口异常关闭</td><td class="mono-sm">未归因</td><td><span class="st-unknown">－ 未验证</span></td><td>-</td><td>0.7</td></tr><tr><td>硬降落距离恒为0导致无法下落</td><td class="mono-sm">未归因</td><td><span class="st-unknown">－ 未验证</span></td><td>-</td><td>0.6</td></tr></table></details><details><summary>R6（2 条假设，18 次调用）</summary><table class="tbl"><tr><th>问题（自然语言）</th><th>归因</th><th>结果</th><th>尝试</th><th>置信度</th></tr><tr><td>游戏暂停后无法恢复，最终窗口关闭</td><td class="mono-sm">未归因</td><td><span class="st-rejected">✘ 未通过</span></td><td>8</td><td>0.8</td></tr><tr><td>硬降操作未使方块下落</td><td class="mono-sm">未归因</td><td><span class="st-rejected">✘ 未通过</span></td><td>8</td><td>0.7</td></tr></table></details><details><summary>R7（2 条假设，11 次调用）</summary><table class="tbl"><tr><th>问题（自然语言）</th><th>归因</th><th>结果</th><th>尝试</th><th>置信度</th></tr><tr><td>游戏暂停后无法恢复，最终窗口关闭</td><td class="mono-sm">未归因</td><td><span class="st-rejected">✘ 未通过</span></td><td>8</td><td>0.8</td></tr><tr><td>硬降操作未使方块下落</td><td class="mono-sm">未归因</td><td><span class="st-fixed">✔ 已修复</span></td><td>1</td><td>0.7</td></tr></table></details><details><summary>R8（1 条假设，3 次调用）</summary><table class="tbl"><tr><th>问题（自然语言）</th><th>归因</th><th>结果</th><th>尝试</th><th>置信度</th></tr><tr><td>探针告警：pause=1 而 resume=0，本局以 window_closed 收尾</td><td class="mono-sm">未归因</td><td><span class="st-fixed">✔ 已修复</span></td><td>1</td><td>0.9</td></tr></table></details>
+
+<h2>数据一致性</h2>
+<p class="bad">✘ 不一致（Σ fixes_applied=7 vs fixes.json fixed=3）</p>
+
+<footer>由 gen_html_report.py 生成（出题方侧离线评估；PH 编号不回流 agent）。
+数据源：eval/round_N.json + data/fixes.json + truth_map（join 逻辑与 score_eval.py 一致）。</footer>
+</div></body></html>
