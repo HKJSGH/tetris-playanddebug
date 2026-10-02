@@ -103,6 +103,10 @@ def node_tester(state: dict) -> dict:
             broken = _broken_bugs(tr.output)
             broken_b = {b.removeprefix("test_") for b in broken}
             regressions = sorted(fixed_b & broken_b)          # 基线内变红 = 修坏旧账
+            if regressions:
+                # 跨尝试累积（eval 用真实回归数，不再硬编码 0）
+                result["regressions"] = sorted(
+                    set(state.get("regressions") or []) | set(regressions))
             # 归因只认「基线外整文件全绿」（文件内任一用例红都不算）
             newly = [b for b in ALL_BUGS if b not in broken_b and b not in fixed_b]
             no_tests = "no tests ran" in tr.output
@@ -154,9 +158,12 @@ def node_tester(state: dict) -> dict:
         return result
     rejected = list(state.get("rejected") or [])
     if problem and problem not in {r.get("problem") for r in rejected}:
+        probe_key = str(hyp.get("probe_key", "") or "")
         rejected.append({
             "problem": problem,
             "suspect_function": hyp.get("suspect_function", ""),
+            # 内部弱归因（评估账本用；有探针来源才填，否则诚实留空）
+            "phenomenon_id": b_to_ph(probe_key) if probe_key else "",
             "attempts": attempts,
             "last_error": hyp.get("last_error", ""),
         })

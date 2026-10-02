@@ -41,6 +41,48 @@ def _read_fixed() -> list[dict]:
     return []
 
 
+def _evidence_src(h: dict, state: dict) -> str:
+    """假设的证据源标签（探针/截图/反馈/综合；不含任何内部编号）。"""
+    if h.get("probe_key"):
+        return "探针"
+    ev = " ".join(str(x) for x in h.get("evidence", []))
+    for f in state.get("vision_findings") or []:
+        for o in f.get("observations", []):
+            o = str(o).strip()
+            if o and o in ev:
+                return "截图"
+    for s in state.get("feedback_symptoms") or []:
+        t = str(s.get("text", "")).strip()
+        if t and t in ev:
+            return "反馈"
+    return "综合"
+
+
+def print_hypothesis_table(final: dict) -> None:
+    """开发侧战报：本局每条假设一行（证据源/结果/尝试次数）。无内部编号。"""
+    hyps = final.get("hypotheses") or []
+    if not hyps:
+        return
+    fixed = final.get("fixed_phenomena") or []
+    rejected = final.get("rejected") or []
+    attempts = {
+        **{str(f.get("hypothesis", "")).strip(): f.get("attempts_used", 0) for f in fixed},
+        **{str(r.get("problem", "")).strip(): r.get("attempts", 0) for r in rejected},
+    }
+    fixed_problems = {str(f.get("hypothesis", "")).strip() for f in fixed}
+    rejected_problems = {str(r.get("problem", "")).strip() for r in rejected}
+    print("-" * 72)
+    print("本局假设战报（开发侧）")
+    print(f"  {'问题（截断）':<40}{'证据':<6}{'结果':<10}尝试")
+    for h in hyps:
+        problem = str(h.get("problem", "")).strip()
+        outcome = ("✔ 已修复" if problem in fixed_problems
+                   else "✘ 未通过" if problem in rejected_problems else "－ 未验证")
+        n = attempts.get(problem, 0)
+        print(f"  {problem[:38]:<40}{_evidence_src(h, final):<6}{outcome:<10}{n if n else '-'}")
+    print("-" * 72)
+
+
 def print_fix_report(before_ph: set[str], session_rounds: list[int]) -> None:
     """debug 收尾总结：agent 视角，只有自然语言问题文本。
 
@@ -259,6 +301,7 @@ def main() -> int:
         if args.commit:
             _commit_fixes(before_ph, args.round, args.mode)
         print_fix_report(before_ph, [args.round])
+        print_hypothesis_table(final)
         return 0
 
     # campaign：从 round_1 起逐局；eval 已存在的局跳过（续跑语义），fixes.json
@@ -279,6 +322,7 @@ def main() -> int:
         final, log_path = run_round(app, rid, args.mode, args.max_patch_attempts,
                                     args.max_hypotheses, args.verbose)
         print_summary(final)
+        print_hypothesis_table(final)
         print(f"黑板日志: {log_path}")
         if args.commit:
             _commit_fixes(before_ph, rid, args.mode)

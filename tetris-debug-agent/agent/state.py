@@ -33,6 +33,7 @@ class Hypothesis(TypedDict, total=False):
     rationale: str
     evidence: list[str]
     source: str                 # llm | fallback
+    probe_key: str              # 框架内部弱归因（Bxx，纯代码回填；绝不进任何 prompt）
     outcome: str                # fixed | rejected | deferred
     attempts: int
     last_error: str
@@ -55,6 +56,7 @@ class PipelineState(TypedDict, total=False):
     constants_src: dict             # 顶层常量名 → 源码段
     fixed_prior: list[str]          # 跨局记忆：fixes.json 已修复问题的自然语言描述
     rejected_prior: list[str]       # 跨局记忆：历史局已否决问题的自然语言描述
+    fixed_prior_ph: list[str]       # 框架内部：已修复 PH 集合（纯代码过滤兜底假设用，不进 prompt）
 
     # 证据节点产物
     vision_findings: list[dict]     # [{ticket_id, image, observations}]
@@ -73,6 +75,7 @@ class PipelineState(TypedDict, total=False):
     fixed_phenomena: list[dict]     # 本局确认修复
     rejected: list[dict]
     deferred: list[dict]
+    regressions: list[str]          # 本局累积出现过的回归 bug（Bxx，tester 累加）
     errors: list[str]
 
     # 记账（节点只写增量，merge_tokens reducer 累加）

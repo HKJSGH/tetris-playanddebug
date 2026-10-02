@@ -36,9 +36,10 @@ def _split_feedback(rd) -> list[dict]:
 
 
 def _probe_signals(report: dict) -> list[str]:
+    # 只传证据文本；探针键名（Bxx）是框架内部编号，不进 LLM prompt
     return [
-        f"[探针 {k}] {v['evidence'][0] if v['evidence'] else v['status']}"
-        for k, v in report.get("probes", {}).items()
+        f"探针：{v['evidence'][0] if v['evidence'] else v['status']}"
+        for v in report.get("probes", {}).values()
         if v["status"] == "signal"
     ]
 

@@ -49,6 +49,13 @@ def node_wrapup(state: dict) -> dict:
     hypotheses = state.get("hypotheses") or []
     rejected_problems = {str(r.get("problem", "")).strip() for r in rejected}
     fixed_problems = {str(f.get("hypothesis", "")).strip() for f in fixed}
+    # PH 反查（框架内部账本 → eval 纯代码传递，不进任何 prompt）：
+    # fixed 从 fixed_phenomena（tester 归因产物）按 problem 文本反查；
+    # rejected 直接取 tester 附的 phenomenon_id（无探针来源则空）。
+    ph_by_problem = {
+        **{str(f.get("hypothesis", "")).strip(): f.get("phenomenon_id", "") for f in fixed},
+        **{str(r.get("problem", "")).strip(): r.get("phenomenon_id", "") for r in rejected},
+    }
     attempts_by_problem = {
         **{str(r.get("problem", "")).strip(): r.get("attempts", 0) for r in rejected},
         **{str(f.get("hypothesis", "")).strip(): f.get("attempts_used", 0) for f in fixed},
@@ -64,6 +71,7 @@ def node_wrapup(state: dict) -> dict:
         hyp_rows.append({
             "rank": i,
             "problem": problem,
+            "phenomenon_id": ph_by_problem.get(problem, ""),
             "confidence": h.get("confidence"),
             "source": h.get("source", ""),
             "outcome": outcome,
@@ -99,8 +107,10 @@ def node_wrapup(state: dict) -> dict:
             "confirmed": len(fixed),
             "false_positive": len(rejected),
         },
-        "regressions": 0,
-        "bonus_findings": [],
+        # tester 跨尝试累积的真实回归清单（非空即修坏过旧账）
+        "regressions": len(state.get("regressions") or []),
+        # deferred = 本局提出但未走完验证的假设（自然语言，供离线报告看漏诊）
+        "bonus_findings": [h["problem"] for h in hyp_rows if h["outcome"] == "deferred"],
         "fixes_applied": len(fixed),
         "cumulative_fixed": len(known_fixed),
         "status": data["status"],

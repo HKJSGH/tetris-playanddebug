@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from agent.nodes.common import get_llm_for, TokenDelta
+from agent.nodes.common import get_llm_for, ph_to_b, TokenDelta
 from agent.tools.llm import llm_available, parse_json_text
 
 SYSTEM = (
@@ -44,9 +44,40 @@ def hypotheses_from_probes(report: dict) -> list[dict]:
             "rationale": "探针信号直接映射（纯代码兜底）",
             "evidence": ev,
             "source": "fallback",
+            # 框架内部弱归因（评估账本用；不进任何 prompt）
+            "probe_key": probe_key,
         })
     out.sort(key=lambda h: -h["confidence"])
     return out
+
+
+def _drop_fixed(hyps: list[dict], fixed_prior_ph: list[str]) -> list[dict]:
+    """兜底假设同样遵守「已修复勿提」：探针键落在跨局已修复基线内的直接剔除。
+
+    fixed_prior_ph 为框架内部账本（ingest 从 fixes.json 提取的 PH 集合），
+    纯代码过滤用，不进任何 prompt。
+    """
+    fixed_b = {ph_to_b(str(ph)) for ph in fixed_prior_ph if ph}
+    return [h for h in hyps
+            if not h.get("probe_key") or h["probe_key"] not in fixed_b]
+
+
+def _match_probe_key(evidence: list[str], report: dict) -> str:
+    """纯代码弱归因：假设证据与探针证据文本互为子串 → 探针键。
+
+    仅用于评估账本（probe_key 字段），文本留在纯代码层比对，
+    键名不进任何 LLM prompt。匹配不到返回空串（诚实留空）。
+    """
+    items = [str(e) for e in evidence if str(e).strip()]
+    for key, pr in report.get("probes", {}).items():
+        if pr.get("status") != "signal":
+            continue
+        for pe in (str(x) for x in pr.get("evidence", [])):
+            if not pe.strip():
+                continue
+            if any(pe in it or it in pe for it in items):
+                return key
+    return ""
 
 
 def _norm_fn(raw: str, names: set[str]) -> str:
@@ -90,9 +121,10 @@ def node_diagnostician(state: dict) -> dict:
     vision = state.get("vision_findings") or []
     fixed_prior = list(state.get("fixed_prior") or [])
     rejected_prior = list(state.get("rejected_prior") or [])
+    fixed_prior_ph = list(state.get("fixed_prior_ph") or [])
 
     if mode == "mock" or not llm_available("text"):
-        hyps = hypotheses_from_probes(report)
+        hyps = _drop_fixed(hypotheses_from_probes(report), fixed_prior_ph)
         first = hyps[0] if hyps else None
         return {**acc.out(), "hypotheses": hyps, "hypothesis_cursor": 0 if first else -1,
                 "current_hypothesis": first, "patch_attempts": 0}
@@ -140,17 +172,20 @@ def node_diagnostician(state: dict) -> dict:
             acc.error(f"diagnostician: 丢弃假设[{i}] {problem[:40]!r}（重复或已修复）")
             continue
         seen_problem.add(problem)
+        hyp_evidence = [str(x) for x in d.get("evidence", [])]
         hyps.append({
             "hypothesis_id": f"H{len(hyps) + 1}",
             "problem": problem,
             "suspect_function": fn,
             "confidence": float(d.get("confidence", 0.5)),
             "rationale": str(d.get("rationale", "")),
-            "evidence": [str(x) for x in d.get("evidence", [])],
+            "evidence": hyp_evidence,
             "source": "llm",
+            # 纯代码回填的内部弱归因（评估账本用；不进任何 prompt）
+            "probe_key": _match_probe_key(hyp_evidence, report),
         })
     if not hyps:
-        hyps = hypotheses_from_probes(report)
+        hyps = _drop_fixed(hypotheses_from_probes(report), fixed_prior_ph)
         acc.error("diagnostician: LLM 假设不可用，走纯代码兜底")
     first = hyps[0] if hyps else None
     return {**acc.out(), "hypotheses": hyps, "hypothesis_cursor": 0 if first else -1,

@@ -60,12 +60,31 @@ def _load_bug_names() -> dict[str, str]:
         return {}
 
 
-def _checklist(rows, fixes: dict, truth: dict, channels: dict, bug_names: dict, emit) -> None:
+def _ph_lookup(fixes: dict):
+    """PH 反查：eval 行的 phenomenon_id 优先；缺则按 problem 文本 join
+    fixes.json fixed（兼容归因制改造前的旧 eval 数据）。"""
+    by_hyp = {str(f.get("hypothesis", "")).strip(): str(f.get("phenomenon_id", "") or "")
+              for f in fixes.get("fixed_phenomena", [])}
+
+    def ph_of(h: dict) -> str:
+        ph = str(h.get("phenomenon_id", "") or "")
+        return ph or by_hyp.get(str(h.get("problem", "")).strip(), "")
+
+    return ph_of
+
+
+def _checklist(rows, fixes: dict, truth: dict, channels: dict, bug_names: dict,
+               ph_of, emit) -> None:
     """12-bug 修复清单：每 bug 是否修复 / 工具链路 / 开销。"""
     fixed_by_ph = {f["phenomenon_id"]: f for f in fixes.get("fixed_phenomena", [])}
     rej_rounds: dict[str, list[tuple[int, int]]] = {}
+    unattributed_rej = 0
     for r in fixes.get("rejected", []):
-        rej_rounds.setdefault(r["phenomenon_id"], []).append(
+        ph = str(r.get("phenomenon_id", "") or "")
+        if not ph:
+            unattributed_rej += 1   # 无探针来源的否决假设，诚实不归因
+            continue
+        rej_rounds.setdefault(ph, []).append(
             (r.get("round_id", 0), r.get("attempts", 0) or 0))
 
     # 每 PH 的相关局次与开销（该局 eval 假设表里出现过即算相关；多 bug 同局时开销重复计入）
@@ -76,22 +95,20 @@ def _checklist(rows, fixes: dict, truth: dict, channels: dict, bug_names: dict, 
                 toks.get("completion_tokens", 0), r.get("n_graph_steps", 0),
                 r.get("duration_sec", 0.0))
         for h in r.get("hypotheses", []):
-            ph = h.get("phenomenon_id", "")
-            inv = involved.setdefault(ph, {"rounds": [], "attempts": 0, "source": ""})
+            ph = ph_of(h)
+            inv = involved.setdefault(ph, {"rounds": [], "attempts": 0})
             if rid not in inv["rounds"]:
                 inv["rounds"].append(rid)
             inv["attempts"] = max(inv["attempts"], h.get("attempts", 0) or 0)
-            if h.get("outcome") != "deferred" or not inv["source"]:
-                inv["source"] = h.get("source", "") or inv["source"]
             inv["cost"] = cost
     fixed_rounds = {ph: rid for rid, r in rows
                     for h in r.get("hypotheses", [])
-                    if h.get("outcome") == "fixed"
-                    for ph in [h.get("phenomenon_id", "")]}
+                    if h.get("outcome") == "fixed" and ph_of(h)
+                    for ph in [ph_of(h)]}
 
     emit("## 12-bug 修复清单")
     emit()
-    emit("| Bug | 名称 | 结果 | 相关局 | 补丁尝试 | 工具链路（证据通道 / 假设来源） | 嫌疑函数 | 相关局开销 调用/tokens(入+出)/步/时长s |")
+    emit("| Bug | 名称 | 结果 | 相关局 | 补丁尝试 | 证据通道 | 嫌疑函数 | 相关局开销 调用/tokens(入+出)/步/时长s |")
     emit("|---|---|---|---|---:|---|---|---|")
     for ph in sorted(truth):
         bid = truth[ph]
@@ -108,15 +125,17 @@ def _checklist(rows, fixes: dict, truth: dict, channels: dict, bug_names: dict, 
         else:
             result = "？未定位（无假设）"
         chs = "/".join(channels.get(ph, [])) or "-"
-        src = {"llm": "LLM 诊断", "fallback": "探针兜底"}.get(inv.get("source", ""), inv.get("source", "") or "-")
         c = inv.get("cost") or (0, 0, 0, 0, 0.0)
         cost = f"{c[0]} / {c[1]}+{c[2]} / {c[3]} / {c[4]:.1f}" if inv else "-"
         emit(f"| {bid} | {name} | {result} | {','.join(map(str, inv.get('rounds', []))) or '-'} "
-             f"| {inv.get('attempts', 0) or (fx or {}).get('attempts_used', 0)} | {chs} / {src} "
+             f"| {inv.get('attempts', 0) or (fx or {}).get('attempts_used', 0)} | {chs} "
              f"| {(fx or {}).get('suspect_function', '') or '-'} | {cost} |")
     emit()
     emit("> 开销口径：该 bug 出现在假设清单的局次之整局开销（多 bug 同局时重复计入）；"
          "tokens 为 prompt+completion。")
+    if unattributed_rej:
+        emit(f"> 注：{unattributed_rej} 条已否决假设无探针来源、无法归因到具体 bug，"
+             "未计入「已尝试未通过」。")
     emit()
 
 
@@ -171,7 +190,8 @@ def main() -> int:
 
     emit(f"# {header_tag}（{rows[-1][1].get('timestamp', '')[:10]}）")
     emit()
-    _checklist(rows, fixes, truth, channels, bug_names, emit)
+    ph_of = _ph_lookup(fixes)
+    _checklist(rows, fixes, truth, channels, bug_names, ph_of, emit)
     emit("## 每局汇总")
     emit()
     emit("| 局 | 模式 | 确认修复(PH→B) | 提出 | 误报 | 累计 | LLM调用 | tokens(入/出) | 图步 | 时长s |")
@@ -180,7 +200,8 @@ def main() -> int:
     for rid, r in rows:
         toks = r.get("tokens") or {}
         hit = r.get("hit_summary") or {}
-        confirmed_ph = [h["phenomenon_id"] for h in r.get("hypotheses", []) if h.get("outcome") == "fixed"]
+        confirmed_ph = sorted({ph_of(h) for h in r.get("hypotheses", [])
+                               if h.get("outcome") == "fixed" and ph_of(h)})
         confirmed = ", ".join(f"{ph}→{truth.get(ph, '?')}" for ph in confirmed_ph) or "-"
         tot["llm"] += toks.get("n_llm_calls", 0)
         tot["p_tok"] += toks.get("prompt_tokens", 0)
@@ -204,6 +225,16 @@ def main() -> int:
         emit(f"R{rid:<3}|{bar}| {cum}/{TOTAL_BUGS}")
     emit("```")
 
+    # 修复时间线：第几局确认修复了哪些 bug（评估行 PH 优先，旧数据按 problem 文本 join）
+    emit()
+    emit("## 修复时间线")
+    emit()
+    for rid, r in rows:
+        phs = sorted({ph_of(h) for h in r.get("hypotheses", [])
+                      if h.get("outcome") == "fixed" and ph_of(h)})
+        names = ", ".join(f"{ph}→{truth.get(ph, '?')}" for ph in phs) or "-"
+        emit(f"- R{rid}: {names}（累计 {r.get('cumulative_fixed', 0)}/{TOTAL_BUGS}）")
+
     cum_final = rows[-1][1].get("cumulative_fixed", 0)
     n_rounds = len(rows)
     converged = fixes.get("status") == "converged"
@@ -217,6 +248,21 @@ def main() -> int:
          + (f"（命中率 {tot['fix'] / (tot['fix'] + tot['fp']) * 100:.0f}%）" if tot['fix'] + tot['fp'] else ""))
     emit(f"- 成本：LLM 调用 Σ{tot['llm']}，tokens Σ{tot['p_tok']}/{tot['c_tok']}，"
          f"图步 Σ{tot['steps']}，时长 Σ{tot['dur']:.1f}s")
+    # 成本构成：tokens 按节点拆分（by_agent 已落盘，纯展示）
+    by: dict[str, dict] = {}
+    for _, r in rows:
+        for ag, v in ((r.get("tokens") or {}).get("by_agent") or {}).items():
+            t = by.setdefault(ag, {"p": 0, "c": 0})
+            t["p"] += v.get("prompt_tokens", 0)
+            t["c"] += v.get("completion_tokens", 0)
+    tot_by = sum(t["p"] + t["c"] for t in by.values())
+    if tot_by:
+        parts = "，".join(
+            f"{ag} {(t['p'] + t['c']) / tot_by * 100:.0f}%"
+            for ag, t in sorted(by.items(), key=lambda kv: -(kv[1]["p"] + kv[1]["c"]))
+            if t["p"] + t["c"] > 0
+        )
+        emit(f"- 成本构成（tokens）：{parts}")
     emit(f"- 回归：Σ{sum(r.get('regressions', 0) for _, r in rows)}")
 
     # 一致性校验：eval 行合计 vs fixes.json 权威账本

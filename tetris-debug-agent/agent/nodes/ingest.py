@@ -16,13 +16,17 @@ def node_ingest(state: dict) -> dict:
     sm = build_srcmap()
     fixed_prior: list[str] = []
     rejected_prior: list[str] = []
+    fixed_prior_ph: list[str] = []
     if FIXES_PATH.exists():
         fx = json.loads(FIXES_PATH.read_text(encoding="utf-8"))
-        # 跨局记忆只给自然语言问题文本（PH 编号是框架内部 key，不进 prompt）
+        # 跨局记忆只给自然语言问题文本（PH 编号是框架内部 key，不进 prompt）；
+        # fixed_prior_ph 仅供纯代码过滤兜底假设（已修复勿提），同样不进 prompt
         fixed_prior = sorted({str(f.get("hypothesis", "")).strip()
                               for f in fx.get("fixed_phenomena", [])} - {""})
         rejected_prior = sorted({str(r.get("problem", "")).strip()
                                  for r in fx.get("rejected", [])} - {""})
+        fixed_prior_ph = sorted({str(f.get("phenomenon_id", "")).strip()
+                                 for f in fx.get("fixed_phenomena", [])} - {""})
     acc = TokenDelta()
     acc.step("ingest")
     return {
@@ -34,6 +38,7 @@ def node_ingest(state: dict) -> dict:
         "constants_src": sm.constants,
         "fixed_prior": fixed_prior,
         "rejected_prior": rejected_prior,
+        "fixed_prior_ph": fixed_prior_ph,
         **acc.out(),
         "hypotheses": [],
         "hypothesis_cursor": -1,
