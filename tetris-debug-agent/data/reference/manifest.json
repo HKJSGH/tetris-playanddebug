@@ -1,6 +1,6 @@
 {
   "format": "reference-v1",
-  "source_sha256": "38af66ed87df366e9f7c19277e262f402d01ec3ba1729a25841a3bdd3817952b",
+  "source_sha256": "10bbbacacaa3e09047f0e981d3e2905888c93c3fb6176e361ee492965ea4f2bd",
   "modules": [
     {
       "name": "window",
@@ -8,9 +8,9 @@
       "label": "整体窗口",
       "bbox": [
         108,
-        119,
+        118,
         632,
-        723
+        722
       ],
       "state": "fresh_spawn"
     },
@@ -20,9 +20,9 @@
       "label": "游戏区（棋盘格）",
       "bbox": [
         108,
-        119,
+        118,
         468,
-        723
+        722
       ],
       "state": "i_piece_color"
     },
@@ -32,9 +32,9 @@
       "label": "「下一个」预览区",
       "bbox": [
         468,
-        219,
+        218,
         632,
-        319
+        318
       ],
       "state": "preview_overlap"
     },
@@ -44,9 +44,9 @@
       "label": "右侧信息栏（分数/预览/提示）",
       "bbox": [
         468,
-        119,
+        118,
         632,
-        723
+        722
       ],
       "state": "stacked_board"
     },
@@ -55,10 +55,10 @@
       "file": "pause_panel.png",
       "label": "暂停面板",
       "bbox": [
-        1598,
-        679,
-        1858,
-        839
+        1578,
+        648,
+        1878,
+        868
       ],
       "state": "paused_panel"
     }

@@ -1,5 +1,5 @@
 catalog_version: 2
-source_sha256: fbb1fdf15fa4e9f6ccad4e8195e848f11e74b7d58ae6f9a0cad555997d83bd16
+source_sha256: 60eae504855e29939d2be6adf4bc47a10a45eb37bb5b79571fc014d4f05bfc3f
 bugs_sha256: 61f7da28390b7e60c27c4dee4bf46c3197a7961afe05bdb071600fb810ad514e
 phenomena:
 - id: PH-01
