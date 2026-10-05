@@ -70,8 +70,10 @@ def _feedback_by_ticket(rd) -> dict[str, str]:
             ticket = ""
             block = []
             for token in line.replace("#", " ").split():
-                if token.startswith("S") and token[1:].isdigit():
-                    ticket = token
+                # 工单号格式 [S0000001]，剥掉方括号再判定（与 feedback._split_feedback 同款修复）
+                tok = token.strip("[]")
+                if tok.startswith("S") and tok[1:].isdigit():
+                    ticket = tok
             block.append(line)
         elif ticket:
             block.append(line)

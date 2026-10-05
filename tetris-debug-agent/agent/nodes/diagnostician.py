@@ -117,7 +117,10 @@ def node_diagnostician(state: dict) -> dict:
     report = state["probe_report"]
     mode = state.get("mode", "mock")
     srcmap = state.get("srcmap") or {}
-    symptoms = state.get("feedback_symptoms") or []
+    # 优化建议旁路：只把「报异常」类症状喂给诊断；「提期望」类建议不进
+    # 假设/补丁循环（由 wrapup 记入 bonus_findings，见 feedback.py 分拣说明）
+    symptoms = [s for s in (state.get("feedback_symptoms") or [])
+                if s.get("kind") != "suggestion"]
     vision = state.get("vision_findings") or []
     fixed_prior = list(state.get("fixed_prior") or [])
     rejected_prior = list(state.get("rejected_prior") or [])

@@ -109,8 +109,14 @@ def node_wrapup(state: dict) -> dict:
         },
         # tester 跨尝试累积的真实回归清单（非空即修坏过旧账）
         "regressions": len(state.get("regressions") or []),
-        # deferred = 本局提出但未走完验证的假设（自然语言，供离线报告看漏诊）
-        "bonus_findings": [h["problem"] for h in hyp_rows if h["outcome"] == "deferred"],
+        # bonus_findings = deferred 假设（提出未走完验证）+ 优化建议旁路
+        # 收编的玩家建议（feedback 分拣 kind=suggestion，不进修复循环）
+        "bonus_findings": (
+            [h["problem"] for h in hyp_rows if h["outcome"] == "deferred"]
+            + [f"[玩家建议] {str(s.get('text', '')).strip()}"
+               for s in state.get("feedback_symptoms") or []
+               if s.get("kind") == "suggestion" and str(s.get("text", "")).strip()]
+        ),
         "fixes_applied": len(fixed),
         "cumulative_fixed": len(known_fixed),
         "status": data["status"],

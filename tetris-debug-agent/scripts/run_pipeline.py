@@ -83,7 +83,15 @@ def print_hypothesis_table(final: dict) -> None:
     print("-" * 72)
 
 
-def print_fix_report(before_ph: set[str], session_rounds: list[int]) -> None:
+def _suggestions_of(final: dict) -> list[str]:
+    """本局玩家建议（优化建议旁路收编项；玩家视角，无内部编号）。"""
+    return sorted({str(s.get("text", "")).strip()
+                   for s in final.get("feedback_symptoms") or []
+                   if s.get("kind") == "suggestion" and str(s.get("text", "")).strip()} - {""})
+
+
+def print_fix_report(before_ph: set[str], session_rounds: list[int],
+                     suggestions: list[str] | None = None) -> None:
     """debug 收尾总结：agent 视角，只有自然语言问题文本。
 
     agent 不知道现象目录/bug 清单：没有「未定位问题」列表（agent 不可能
@@ -122,6 +130,10 @@ def print_fix_report(before_ph: set[str], session_rounds: list[int]) -> None:
         print("✘ 本次已尝试修复但未通过测试验证（证据不足或补丁未达标）的问题：")
         for p, n in seen_attempts.items():
             print(f"  - {p}（尝试 {n} 次补丁）")
+    if suggestions:
+        print("◆ 已记录的改进建议（本次实验聚焦修复缺陷，未自动改动代码）：")
+        for s in suggestions:
+            print(f"  - {s}")
     print(f"累计已修复 {len(fixed_ids)} 项 bug")
     print("=" * 60)
 
@@ -300,7 +312,7 @@ def main() -> int:
         print(f"黑板日志: {log_path}")
         if args.commit:
             _commit_fixes(before_ph, args.round, args.mode)
-        print_fix_report(before_ph, [args.round])
+        print_fix_report(before_ph, [args.round], _suggestions_of(final))
         print_hypothesis_table(final)
         return 0
 
@@ -308,6 +320,7 @@ def main() -> int:
     # status==converged 或局数用尽/无数据即停
     summary = []
     session_rounds: list[int] = []
+    session_suggestions: list[str] = []
     before_all = {f["phenomenon_id"] for f in _read_fixed()}
     for rid in range(1, args.rounds + 1):
         run_dir = RUNS_ROOT / f"round_{rid}"
@@ -321,6 +334,7 @@ def main() -> int:
         session_rounds.append(rid)
         final, log_path = run_round(app, rid, args.mode, args.max_patch_attempts,
                                     args.max_hypotheses, args.verbose)
+        session_suggestions.extend(_suggestions_of(final))
         print_summary(final)
         print_hypothesis_table(final)
         print(f"黑板日志: {log_path}")
@@ -343,7 +357,7 @@ def main() -> int:
         if fixes_path.exists() and json.loads(fixes_path.read_text(encoding="utf-8")).get("status") == "converged":
             print(f"第 {rid} 局达成收敛")
             break
-    print_fix_report(before_all, session_rounds)
+    print_fix_report(before_all, session_rounds, session_suggestions)
     if summary:
         EVAL_DIR.mkdir(parents=True, exist_ok=True)
         (EVAL_DIR / "campaign.json").write_text(
