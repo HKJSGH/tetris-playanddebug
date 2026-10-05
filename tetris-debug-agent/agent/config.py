@@ -36,6 +36,7 @@ TRUTH_MAP_PATH = GOLD_DIR / "truth_map.json"
 GOLDEN_PATH = GOLD_DIR / "golden.json"
 FIXES_PATH = DATA_ROOT / "fixes.json"
 BACKUP_DIR = DATA_ROOT / "backup"
+PATCH_HISTORY_PATH = DATA_ROOT / "patch_history.jsonl"   # 补丁尝试历史（append-only 审计账本）
 EVAL_DIR = SANDBOX_ROOT / "eval"
 
 # 待修目标（沙盒内）

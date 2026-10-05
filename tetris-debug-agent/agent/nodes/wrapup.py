@@ -1,11 +1,12 @@
-r"""wrapup — 纯代码节点：合并 fixes.json（跨局记忆）+ 写 eval/round_N.json。"""
+r"""wrapup — 纯代码节点：合并 fixes.json（跨局记忆）+ 尝试历史落盘 + 写 eval/round_N.json。"""
 from __future__ import annotations
 
 import json
 import time
 
 from agent.config import (
-    EVAL_DIR, FIXES_PATH, TEXT_MODEL, TEXT_API_KEY_ENV, VISION_MODEL, VISION_API_KEY_ENV,
+    EVAL_DIR, FIXES_PATH, PATCH_HISTORY_PATH,
+    TEXT_MODEL, TEXT_API_KEY_ENV, VISION_MODEL, VISION_API_KEY_ENV,
 )
 from agent.nodes.common import catalog_by_ph, TokenDelta
 from agent.tools.llm import llm_available
@@ -17,6 +18,22 @@ def _load_fixes() -> dict:
     return {"version": 1, "fixed_phenomena": [], "rejected": []}
 
 
+def _append_patch_history(state: dict) -> int:
+    """黑板 attempt_log → data/patch_history.jsonl（append-only 审计账本）。
+
+    每条 = 一次补丁尝试的完整记录（含 blocks 全文与失败原因），供事后逐条
+    审计「LLM 每次试图改什么、为什么失败」；绝不回流任何 LLM prompt。
+    """
+    entries = list(state.get("attempt_log") or [])
+    if not entries:
+        return 0
+    PATCH_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with PATCH_HISTORY_PATH.open("a", encoding="utf-8") as f:
+        for e in entries:
+            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+    return len(entries)
+
+
 def node_wrapup(state: dict) -> dict:
     acc = TokenDelta()
     acc.step("wrapup")
@@ -25,6 +42,7 @@ def node_wrapup(state: dict) -> dict:
     catalog = catalog_by_ph()
     fixed = list(state.get("fixed_phenomena") or [])
     rejected = list(state.get("rejected") or [])
+    n_attempts_logged = _append_patch_history(state)
 
     # ---- fixes.json（跨局累积，phenomenon_id 去重） ----
     data = _load_fixes()
@@ -120,6 +138,8 @@ def node_wrapup(state: dict) -> dict:
         "fixes_applied": len(fixed),
         "cumulative_fixed": len(known_fixed),
         "status": data["status"],
+        # 本局补丁尝试明细条数（完整记录 → data/patch_history.jsonl）
+        "patch_attempts_logged": n_attempts_logged,
         "errors": tokens.get("errors", []),
     }
     EVAL_DIR.mkdir(parents=True, exist_ok=True)

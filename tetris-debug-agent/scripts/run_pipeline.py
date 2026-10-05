@@ -243,18 +243,29 @@ def run_round(app, round_id: int, mode: str, max_patch_attempts: int,
     log(f"# round {round_id}  mode={mode}  {time.strftime('%Y-%m-%d %H:%M:%S')}  日志={log_path.name}")
 
     final: dict = dict(state)
-    for chunk in app.stream(state, {"recursion_limit": 100}, stream_mode="updates"):
-        if not isinstance(chunk, dict):
-            continue
-        for node, delta in chunk.items():
-            if node == "__end__":
+    try:
+        for chunk in app.stream(state, {"recursion_limit": 100}, stream_mode="updates"):
+            if not isinstance(chunk, dict):
                 continue
-            tokens_in = (delta or {}).get("tokens")
-            if tokens_in:
-                delta = {k: v for k, v in (delta or {}).items() if k != "tokens"}
-                final["tokens"] = merge_tokens(final.get("tokens"), tokens_in)
-            final.update(delta or {})
-            log(f"  [{node}] {_digest(node, delta or {})}", echo=verbose)
+            for node, delta in chunk.items():
+                if node == "__end__":
+                    continue
+                tokens_in = (delta or {}).get("tokens")
+                if tokens_in:
+                    delta = {k: v for k, v in (delta or {}).items() if k != "tokens"}
+                    final["tokens"] = merge_tokens(final.get("tokens"), tokens_in)
+                final.update(delta or {})
+                log(f"  [{node}] {_digest(node, delta or {})}", echo=verbose)
+    except LLMError as e:
+        # fail-fast：live 下 LLM 不可用（连接/超时/限流重试耗尽）→ 中止本局。
+        # wrapup 未执行 → fixes.json/eval 不写入，零数据污染；游戏文件在
+        # tester 应用补丁之前，此刻必为干净态。日志留痕后原样上抛。
+        log(f"!! LLMError 本局中止: {e}")
+        print(f"✘ LLM 不可用（重试耗尽）：{e}")
+        print("  本局已中止，fixes.json/eval 未写入（无数据污染）。请检查网络后重跑。")
+        raise
+    finally:
+        fh.close()
     return final, log_path
 
 
@@ -306,8 +317,11 @@ def main() -> int:
         if args.round is None:
             parser.error("单局模式需要 --round N")
         before_ph = {f["phenomenon_id"] for f in _read_fixed()}
-        final, log_path = run_round(app, args.round, args.mode, args.max_patch_attempts,
-                                    args.max_hypotheses, args.verbose)
+        try:
+            final, log_path = run_round(app, args.round, args.mode, args.max_patch_attempts,
+                                        args.max_hypotheses, args.verbose)
+        except LLMError:
+            return 1   # 报错已在 run_round 打印；零落盘，退出码 1
         print_summary(final)
         print(f"黑板日志: {log_path}")
         if args.commit:
@@ -332,8 +346,14 @@ def main() -> int:
             continue
         before_ph = {f["phenomenon_id"] for f in _read_fixed()}
         session_rounds.append(rid)
-        final, log_path = run_round(app, rid, args.mode, args.max_patch_attempts,
-                                    args.max_hypotheses, args.verbose)
+        try:
+            final, log_path = run_round(app, rid, args.mode, args.max_patch_attempts,
+                                        args.max_hypotheses, args.verbose)
+        except LLMError:
+            # 方案 A：LLM 不可用 = 全局性故障，立即中止整场。已完成局照常
+            # 有效（eval 已落盘）；续跑语义下次从断的那局重新开始。
+            print(f"campaign 中止于第 {rid} 局（此前完成的局照常有效，重跑自动续跑）")
+            return 1
         session_suggestions.extend(_suggestions_of(final))
         print_summary(final)
         print_hypothesis_table(final)

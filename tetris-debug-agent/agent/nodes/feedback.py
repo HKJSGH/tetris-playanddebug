@@ -95,24 +95,25 @@ def node_feedback(state: dict) -> dict:
         "错误日志": errors or "（无）",
         "遥测探针信号": signals or "（无）",
     }
+    # llm.chat 不捕获：live 下 LLMError 冒泡中止整局（fail-fast，不静默兜底）
+    result = llm.chat(
+        [{"role": "system", "content": SYSTEM},
+         {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)}],
+        temperature=0.2,
+    )
+    acc.usage("feedback", result)
     try:
-        result = llm.chat(
-            [{"role": "system", "content": SYSTEM},
-             {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)}],
-            temperature=0.2,
-        )
-        acc.usage("feedback", result)
         data = parse_json_text(result.text)
-        symptoms = [
-            {"ticket_id": str(d.get("ticket_id", "")), "text": str(d.get("text", "")),
-             "source": str(d.get("source", "")),
-             # kind 缺失/不合法时按不对称原则归 bug
-             "kind": d.get("kind") if d.get("kind") in ("bug", "suggestion") else "bug"}
-            for d in data if isinstance(d, dict)
-        ] if isinstance(data, list) else []
-    except Exception as e:  # noqa: BLE001
-        acc.error(f"feedback: {e!r}")
-        symptoms = []
+    except Exception as e:  # noqa: BLE001 — 解析失败=输出质量问题，走关键词兜底
+        acc.error(f"feedback: 解析失败 {e!r}")
+        data = []
+    symptoms = [
+        {"ticket_id": str(d.get("ticket_id", "")), "text": str(d.get("text", "")),
+         "source": str(d.get("source", "")),
+         # kind 缺失/不合法时按不对称原则归 bug
+         "kind": d.get("kind") if d.get("kind") in ("bug", "suggestion") else "bug"}
+        for d in data if isinstance(d, dict)
+    ] if isinstance(data, list) else []
     if not symptoms:
         symptoms = [
             {"ticket_id": p["ticket_id"], "text": p["text"], "source": "反馈",

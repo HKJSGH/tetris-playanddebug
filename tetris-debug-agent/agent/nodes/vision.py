@@ -3,9 +3,13 @@ r"""vision — LLM 节点：玩家截图 vs 正确渲染基准图，定位并对
 工单号关联截图与反馈段（screenshot_{ticket}_{n}.png）。有基准图
 （data/reference/manifest.json + 模块 png，gen_reference 产出）时，每张玩家
 截图一次调用同时给全部基准模块图，两步指令（先定位可疑区域，再与基准对比）；
-无基准图时静默降级为旧的逐张单图描述模式。无截图 → findings=[] 并记
-vision_skipped。observations 只描述画面可见差异，不涉及现象号；现象归因由
-diagnostician 对照 catalog 完成。
+content 分层：图例+基准图（跨截图不变，前缀缓存命中）在前，玩家图与
+反馈（易变）在后。无基准图时静默降级为旧的逐张单图描述模式。无截图 →
+findings=[] 并记 vision_skipped。observations 只描述画面可见差异，不涉及
+现象号；现象归因由 diagnostician 对照 catalog 完成。
+
+失败语义：live 模式下 llm.chat 的任何失败（LLMError）不捕获 → 冒泡中止
+整局（不静默跳图）；解析失败=输出质量问题，跳过该张并记账。
 """
 from __future__ import annotations
 
@@ -22,7 +26,8 @@ MAX_REF_IMAGES = 5  # 单次调用的基准图上限（超出截断，防多图�
 
 SYSTEM = (
     "你是游戏 QA 视觉分析员，负责把玩家截图与正确版本的基准截图对照找异常。"
-    "输入是一组图片：图1 为玩家截图，其后为若干张基准模块图（图例标注区域）。"
+    "输入是一组图片：前若干张为基准模块图（图例标注区域），玩家截图附在消息末尾"
+    "（图例与用户消息会指明）。"
     "两步执行："
     "第一步：逐区域检查玩家截图（游戏区 / 「下一个」预览区 / 右侧信息栏 / 暂停面板 / 整体），列出可疑区域；"
     "第二步：把每个可疑区域与对应基准图对比，只报告与基准确实存在的可见差异"
@@ -105,18 +110,20 @@ def node_vision(state: dict) -> dict:
         ticket = shot.stem.split("_")[1] if "_" in shot.stem else ""
         fb_text = fb.get(ticket, "（无）")
         if refs:
-            # 多图对比模式：图1=玩家截图，其后按 manifest 顺序为基准模块图
-            legend = f"图例：图1=玩家截图（工单 {ticket}）" + "".join(
-                f"；图{i + 2}=基准·{r['label']}" for i, r in enumerate(refs)
-            )
+            # 多图对比模式。content 分层（prompt cache 友好）：跨截图调用
+            # [图例(不变), 基准图×N(不变)] 前缀逐字相同可命中，玩家图与
+            # 工单反馈（易变）放最后
+            legend = "图例：" + "".join(
+                f"图{i + 1}=基准·{r['label']}；" for i, r in enumerate(refs)
+            ) + "玩家截图与玩家反馈附在消息末尾。"
             content = [
+                content_part_text(legend),
+                *[content_part_image_b64(_shot_b64(r["path"])) for r in refs],
+                content_part_image_b64(_shot_b64(shot)),
                 content_part_text(
-                    legend
-                    + f"\n玩家反馈（工单 {ticket}）：{fb_text}"
+                    f"玩家截图（工单 {ticket}）如上；玩家反馈：{fb_text}"
                     + "\n按系统指令两步执行，输出 JSON。"
                 ),
-                content_part_image_b64(_shot_b64(shot)),
-                *[content_part_image_b64(_shot_b64(r["path"])) for r in refs],
             ]
             system = SYSTEM
         else:
@@ -129,24 +136,26 @@ def node_vision(state: dict) -> dict:
                 content_part_image_b64(_shot_b64(shot)),
             ]
             system = SYSTEM_LEGACY
+        # llm.chat 不捕获：live 下 LLMError 冒泡中止整局（fail-fast，不静默跳图）
+        result = llm.chat(
+            [{"role": "system", "content": system},
+             {"role": "user", "content": content}],
+            temperature=0.2,
+        )
+        acc.usage("vision", result)
         try:
-            result = llm.chat(
-                [{"role": "system", "content": system},
-                 {"role": "user", "content": content}],
-                temperature=0.2,
-            )
-            acc.usage("vision", result)
             data = parse_json_text(result.text)
-            if isinstance(data, list):
-                findings.extend(
-                    {
-                        "ticket_id": ticket,
-                        "image": str(shot.name),
-                        "region": str(item.get("region", "")) if isinstance(item, dict) else "",
-                        "observations": item.get("observations", []),
-                    }
-                    for item in data if isinstance(item, dict)
-                )
-        except Exception as e:  # noqa: BLE001
-            acc.error(f"vision: {e!r}")
+        except Exception as e:  # noqa: BLE001 — 解析失败=输出质量问题，跳过该张记账
+            acc.error(f"vision: 解析失败 {e!r}")
+            continue
+        if isinstance(data, list):
+            findings.extend(
+                {
+                    "ticket_id": ticket,
+                    "image": str(shot.name),
+                    "region": str(item.get("region", "")) if isinstance(item, dict) else "",
+                    "observations": item.get("observations", []),
+                }
+                for item in data if isinstance(item, dict)
+            )
     return {"vision_findings": findings, "vision_skipped": False, **acc.out()}

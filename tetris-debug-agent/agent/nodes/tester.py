@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 
 from agent.config import FIXES_PATH, MAX_PATCH_ATTEMPTS, TESTS_DIR
 from agent.nodes.common import b_to_ph, ph_to_b, TokenDelta
@@ -62,6 +63,32 @@ def _golden_fail_summary(golden_output: str) -> str:
     return detail
 
 
+def _attempt_entry(state: dict, hyp: dict, attempts: int, n_blocks: int) -> dict:
+    """本次尝试的基础记录（各失败/成功出口补齐细节后由 node_tester 返回）。
+
+    完整条目经黑板 attempt_log 汇入 wrapup → data/patch_history.jsonl（L1 审计
+    账本，含补丁全文与时间戳）；进 patcher prompt 的只有 _attempt_history 的
+    摘要投影（无时间戳/无补丁全文），两层不得混淆。
+    """
+    return {
+        "round_id": state.get("round_id"),
+        "mode": state.get("mode", "mock"),
+        "problem": str(hyp.get("problem", "")).strip(),
+        "suspect_function": hyp.get("suspect_function", ""),
+        "attempt": attempts,
+        "n_blocks": n_blocks,
+        "patch_error": str(state.get("patch_error", "") or ""),
+        "applied": False,
+        "stage": "patch",
+        "ok": False,
+        "passed": None,
+        "failed": None,
+        "error": "",
+        "blocks": [],
+        "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+
 def node_tester(state: dict) -> dict:
     acc = TokenDelta()
     acc.step("tester")
@@ -75,21 +102,28 @@ def node_tester(state: dict) -> dict:
     result = {"patch_attempts": attempts, **acc.out()}
 
     blocks = patch.get("blocks") or []
+    entry = _attempt_entry(state, hyp, attempts, len(blocks))
+    result["attempt_log"] = [entry]        # 各出口统一更新此条目（reducer append 进黑板）
     if not blocks:
         hyp["attempts"] = attempts
         hyp["last_error"] = "patcher 未产出有效补丁"
+        entry["error"] = hyp["last_error"]
         result["current_hypothesis"] = hyp
         result["test_result"] = {"ok": False, "stage": "patch", "error": hyp["last_error"]}
     elif not problem:
         hyp["attempts"] = attempts
         hyp["last_error"] = "无有效假设"
+        entry["error"] = hyp["last_error"]
         result["current_hypothesis"] = hyp
         result["test_result"] = {"ok": False, "stage": "hypothesis", "error": hyp["last_error"]}
     else:
         applied = apply_patch(blocks)
+        entry["applied"] = applied.ok
+        entry["stage"] = "apply"
         if not applied.ok:
             hyp["attempts"] = attempts
             hyp["last_error"] = applied.error
+            entry["error"] = applied.error
             result["current_hypothesis"] = hyp
             result["test_result"] = {"ok": False, "stage": "apply", "error": applied.error}
         else:
@@ -111,6 +145,8 @@ def node_tester(state: dict) -> dict:
             newly = [b for b in ALL_BUGS if b not in broken_b and b not in fixed_b]
             no_tests = "no tests ran" in tr.output
 
+            entry["stage"] = "test"
+            entry["passed"], entry["failed"] = tr.passed, tr.failed
             if not no_tests and newly and not regressions:
                 # 段 2：golden 等价回归（门控 = 基线 ∪ 本轮归因，与 agent 侧同源）
                 allowed = sorted(base_ph | {b_to_ph(b) for b in newly})
@@ -125,6 +161,9 @@ def node_tester(state: dict) -> dict:
                         "output_tail": tr.output[-800:],
                     }
                     hyp["attempts"] = attempts
+                    entry["ok"] = True
+                    entry["error"] = f"已修复并归因: {','.join(newly)}"
+                    entry["blocks"] = blocks
                     for b in newly:
                         fixed.append({
                             "phenomenon_id": b_to_ph(b),
@@ -145,6 +184,8 @@ def node_tester(state: dict) -> dict:
             else:
                 still = sorted(broken_b - fixed_b) or ["（无失败明细）"]
                 hyp["last_error"] = f"补丁未使任何受控测试转绿（仍失败: {','.join(still[:6])}）"
+            entry["error"] = hyp["last_error"]
+            entry["blocks"] = blocks
             result["test_result"] = {
                 "ok": False, "stage": "test",
                 "passed": tr.passed, "failed": tr.failed, "skipped": tr.skipped,

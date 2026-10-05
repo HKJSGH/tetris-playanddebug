@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+from operator import add
 from typing import Annotated, Any, TypedDict
 
 
@@ -68,8 +69,11 @@ class PipelineState(TypedDict, total=False):
     hypothesis_cursor: int
     current_hypothesis: Hypothesis | None
     patch: dict                     # {"blocks": [{"search","replace"}], "note": str}
+    patch_error: str                # patcher 侧失败原因（未产出/解析失败），tester 记账用
     patch_attempts: int             # 当前假设已用尝试次数
     test_result: dict
+    # 每次补丁尝试的完整记录（tester 每尝试追加 1 条；wrapup 落盘 patch_history.jsonl）
+    attempt_log: Annotated[list, add]
 
     # 结果
     fixed_phenomena: list[dict]     # 本局确认修复

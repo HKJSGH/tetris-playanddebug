@@ -23,8 +23,21 @@ def node_ingest(state: dict) -> dict:
         # fixed_prior_ph 仅供纯代码过滤兜底假设（已修复勿提），同样不进 prompt
         fixed_prior = sorted({str(f.get("hypothesis", "")).strip()
                               for f in fx.get("fixed_phenomena", [])} - {""})
-        rejected_prior = sorted({str(r.get("problem", "")).strip()
-                                 for r in fx.get("rejected", [])} - {""})
+        # rejected_prior 增强：问题文本 + 失败模式摘要（尝试次数/嫌疑函数/最后失败），
+        # 让诊断重提前"带着教训"——知道该问题试过修不动，考虑换函数或换角度
+        rejected_prior = []
+        for r in fx.get("rejected", []):
+            p = str(r.get("problem", "")).strip()
+            if not p:
+                continue
+            fn = str(r.get("suspect_function", "") or "").strip()
+            err = str(r.get("last_error", "") or "").strip()
+            s = f"「{p}」此前尝试 {r.get('attempts', '?')} 次未通过"
+            if fn:
+                s += f"（嫌疑函数 {fn}）"
+            if err:
+                s += f"，最后失败: {err[:80]}"
+            rejected_prior.append(s)
         fixed_prior_ph = sorted({str(f.get("phenomenon_id", "")).strip()
                                  for f in fx.get("fixed_phenomena", [])} - {""})
     acc = TokenDelta()
@@ -45,5 +58,7 @@ def node_ingest(state: dict) -> dict:
         "fixed_phenomena": [],
         "rejected": [],
         "deferred": [],
+        "attempt_log": [],      # append-reducer 首值（tester 每尝试追加）
+        "patch_error": "",
         "errors": [],
     }

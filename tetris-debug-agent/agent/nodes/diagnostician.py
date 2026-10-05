@@ -5,6 +5,10 @@ agent 不知道现象目录/bug 清单：假设的 problem 完全由探针告警
 key）。首次进入生成（或兜底生成）假设清单；再次进入取下一个假设。
 兜底 hypotheses_from_probes 为纯 Python：探针 signal → 问题假设（evidence
 本身即现象级描述），suspect_function 留空由 patcher 全函数扫描。
+
+失败语义：mock/无 key 走兜底是合法显式降级；live 模式下 llm.chat 的任何
+失败（LLMError）不捕获 → 冒泡中止整局（静默兜底=用假假设冒充真分析，
+会污染实验数据）。解析失败=模型输出质量问题，仍走兜底（正常失败路径）。
 """
 from __future__ import annotations
 
@@ -145,16 +149,17 @@ def node_diagnostician(state: dict) -> dict:
         "already_fixed": fixed_prior or "（无）",
         "previously_rejected": rejected_prior or "（无）",
     }
+    # llm.chat 不捕获：live 下 LLMError 冒泡中止整局（fail-fast，不静默兜底）
+    result = llm.chat(
+        [{"role": "system", "content": SYSTEM},
+         {"role": "user", "content": json.dumps(user, ensure_ascii=False)}],
+        temperature=0.2,
+    )
+    acc.usage("diagnostician", result)
     try:
-        result = llm.chat(
-            [{"role": "system", "content": SYSTEM},
-             {"role": "user", "content": json.dumps(user, ensure_ascii=False)}],
-            temperature=0.2,
-        )
-        acc.usage("diagnostician", result)
         data = parse_json_text(result.text)
-    except Exception as e:  # noqa: BLE001
-        acc.error(f"diagnostician: {e!r}")
+    except Exception as e:  # noqa: BLE001 — 解析失败=输出质量问题，走纯代码兜底
+        acc.error(f"diagnostician: 解析失败 {e!r}")
         data = []
 
     fn_names = set(srcmap)

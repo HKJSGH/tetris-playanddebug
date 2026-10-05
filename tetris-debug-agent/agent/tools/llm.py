@@ -3,8 +3,14 @@ r"""llm — 模型路由（OpenAI 兼容协议）+ Mock 降级。
 路由：
   vision → qwen-vl-max  @ dashscope compatible-mode（DASHSCOPE_API_KEY）
   text   → deepseek-chat @ deepseek（DEEPSEEK_API_KEY）
-无 key 或调用失败时返回 MockLLM：vision 输出 "[]"（无发现）、text 输出 ""
+无 key 时返回 MockLLM：vision 输出 "[]"（无发现）、text 输出 ""
 （节点解析为空即走纯 Python 兜底），保证无 key 全图可跑。
+
+失败语义（fail-fast 原则）：
+  - 显式降级仅存在于 mock/无 key（构造 MockLLM），是合法路径；
+  - live 模式下 chat 的一切失败（连接/超时/限流重试耗尽/认证/意外异常）
+    统一 raise LLMError，节点不得吞掉 → 冒泡中止整局，绝不静默兜底
+    （静默兜底=用假数据冒充真分析，会污染实验数据）。
 """
 from __future__ import annotations
 
@@ -17,6 +23,21 @@ from agent.config import (
     TEXT_API_KEY_ENV, TEXT_BASE_URL, TEXT_MODEL,
     VISION_API_KEY_ENV, VISION_BASE_URL, VISION_MODEL,
 )
+
+
+class LLMError(RuntimeError):
+    """LLM 不可用（基础设施/认证/重试耗尽）：live 模式下节点必须让它冒泡。"""
+
+
+def _is_retriable(e: Exception) -> bool:
+    """瞬时性错误值得退避重试：限流/上游过载/连接抖动/超时。"""
+    name = type(e).__name__
+    s = str(e)
+    return (
+        "429" in s or "RateLimit" in name or "响应无内容" in s
+        or "Connection" in name or "Timeout" in name
+        or "connection" in s.lower() or "timed out" in s.lower()
+    )
 
 
 @dataclass
@@ -46,6 +67,8 @@ class OpenAICompatLLM:
         self._client = OpenAI(base_url=base_url, api_key=api_key)
 
     def chat(self, messages: list[dict], **kw) -> ChatResult:
+        """瞬时错误退避重试（3/8/15s，共 4 次尝试）；任何终态失败 raise LLMError。"""
+        last: Exception | None = None
         for i in range(len(self._RETRY_WAIT) + 1):
             try:
                 resp = self._client.chat.completions.create(model=self.model, messages=messages, **kw)
@@ -62,12 +85,13 @@ class OpenAICompatLLM:
                     completion_tokens=getattr(usage, "completion_tokens", 0) or 0,
                 )
             except Exception as e:  # noqa: BLE001
-                retriable = "429" in str(e) or "RateLimit" in type(e).__name__ or "响应无内容" in str(e)
-                if retriable and i < len(self._RETRY_WAIT):
+                last = e
+                if _is_retriable(e) and i < len(self._RETRY_WAIT):
                     time.sleep(self._RETRY_WAIT[i])
                     continue
-                raise
-        raise RuntimeError("unreachable")
+                break
+        # 重试耗尽或不可重试（认证错误/意外异常）：统一归类为 LLMError 冒泡中止
+        raise LLMError(f"{type(last).__name__}: {last}" if last else "LLM 调用失败（无异常详情）") from last
 
 
 def get_llm(role: str) -> OpenAICompatLLM | MockLLM:
