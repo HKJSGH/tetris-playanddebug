@@ -351,7 +351,7 @@ class TetrisGame:
         panel.title("已暂停")
         panel.transient(self.win)
         # 初始位置：屏幕正中间
-        w, h = 260, 160
+        w, h = 300, 220
         x = (panel.winfo_screenwidth() - w) // 2
         y = (panel.winfo_screenheight() - h) // 2
         panel.geometry(f"{w}x{h}+{x}+{y}")
