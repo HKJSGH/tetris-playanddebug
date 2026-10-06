@@ -22,11 +22,78 @@ import json
 import re
 import time
 
-from agent.config import FIXES_PATH, MAX_PATCH_ATTEMPTS, TESTS_DIR
+from agent.config import FIXES_PATH, MAX_PATCH_ATTEMPTS, TARGET_FILE, TESTS_DIR
 from agent.nodes.common import b_to_ph, ph_to_b, TokenDelta
 from agent.tools.patch import apply_patch, revert_backup, run_pytest
 
 ALL_BUGS = [f"B{i:02d}" for i in range(1, 13)]
+
+
+# ---- 函数快照（patches.md 人工审计用；只进账本，绝不进任何 LLM prompt） ----
+
+def _enclosing_function(content: str, fragment: str) -> str:
+    """search 片段所在位置向前扫描，取最近的 def 函数名（模块顶层返回 ""）。"""
+    idx = content.find(fragment)
+    if idx < 0:
+        return ""
+    start_line = content.count("\n", 0, idx)
+    lines = content.splitlines()
+    for i in range(min(start_line, len(lines) - 1), -1, -1):
+        m = re.match(r"^(\s*)def\s+(\w+)", lines[i])
+        if m:
+            return m.group(2)
+    return ""
+
+
+def _extract_function(content: str, func_name: str) -> str:
+    """按函数名提取完整源码（def 行起，到下一个同级缩进行 / EOF）。"""
+    if not func_name:
+        return ""
+    lines = content.splitlines()
+    start = indent = None
+    for i, ln in enumerate(lines):
+        m = re.match(rf"^(\s*)def\s+{re.escape(func_name)}\s*\(", ln)
+        if m:
+            start, indent = i, m.group(1)
+            break
+    if start is None:
+        return ""
+    body = [lines[start]]
+    width = len(indent)
+    for ln in lines[start + 1:]:
+        if not ln.strip():
+            body.append(ln)
+            continue
+        if len(ln) - len(ln.lstrip()) <= width:
+            break
+        body.append(ln)
+    return "\n".join(body).rstrip() + "\n"
+
+
+def _func_snapshots(backup_path, blocks: list[dict]) -> list[dict]:
+    """补丁应用成功后立即捕获：每个被改函数的补丁前（备份）/补丁后（目标）完整源码。
+
+    必须在任何 pytest/回滚之前调用——此刻备份与目标文件恰好构成前后两个状态。
+    """
+    try:
+        before = backup_path.read_text(encoding="utf-8").replace("\r\n", "\n")
+        after = TARGET_FILE.read_text(encoding="utf-8").replace("\r\n", "\n")
+    except OSError:
+        return []
+    snaps: list[dict] = []
+    seen: set[str] = set()
+    for b in blocks:
+        name = _enclosing_function(before, str(b.get("search", "")).replace("\r\n", "\n"))
+        key = name or "<模块顶层>"
+        if key in seen:
+            continue
+        seen.add(key)
+        snaps.append({
+            "function": key,
+            "before": _extract_function(before, name) if name else "",
+            "after": _extract_function(after, name) if name else "",
+        })
+    return snaps
 
 
 def _fixed_ph_from_fixes() -> set[str]:
@@ -127,6 +194,7 @@ def node_tester(state: dict) -> dict:
             result["current_hypothesis"] = hyp
             result["test_result"] = {"ok": False, "stage": "apply", "error": applied.error}
         else:
+            entry["func_snapshots"] = _func_snapshots(applied.backup_path, blocks)
             golden_out = ""  # golden 只在归因成功后运行；失败路径统一取尾部输出
             # ---- 归因基线：跨局（fixes.json）∪ 本局（黑板），两处同源 ----
             base_ph = {f["phenomenon_id"] for f in fixed} | _fixed_ph_from_fixes()

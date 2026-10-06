@@ -5,7 +5,7 @@ import json
 import time
 
 from agent.config import (
-    EVAL_DIR, FIXES_PATH, PATCH_HISTORY_PATH,
+    EVAL_DIR, FIXES_PATH, PATCH_HISTORY_PATH, RUNS_ROOT,
     TEXT_MODEL, TEXT_API_KEY_ENV, VISION_MODEL, VISION_API_KEY_ENV,
 )
 from agent.nodes.common import catalog_by_ph, TokenDelta
@@ -34,6 +34,102 @@ def _append_patch_history(state: dict) -> int:
     return len(entries)
 
 
+def _load_history_round(round_id: int) -> list[dict]:
+    """读取账本中该局的全部条目（append-only，同 round_id 重跑会累积）。"""
+    if not PATCH_HISTORY_PATH.exists():
+        return []
+    out = []
+    for line in PATCH_HISTORY_PATH.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            e = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if e.get("round_id") == round_id:
+            out.append(e)
+    return out
+
+
+def _render_entry_md(e: dict, total: int) -> str:
+    """单次尝试 → markdown 段落（失败原因 + 被改函数前后快照）。"""
+    ok = bool(e.get("ok"))
+    mark = "✅" if ok else "❌"
+    lines = [
+        f"## 尝试 {e.get('attempt', '?')}/{total} — {mark}（stage: {e.get('stage', '?')}）",
+        "",
+        f"- 时间：{e.get('ts', '')}　模式：{e.get('mode', '')}",
+        f"- 问题假设：{e.get('problem', '') or '（无）'}",
+        f"- 嫌疑函数：{e.get('suspect_function', '') or '（无）'}",
+    ]
+    if e.get("patch_error"):
+        lines.append(f"- 补丁产出错误：{e['patch_error']}")
+    lines.append(f"- 结果：{'修复成功，已归因 ' + str(e.get('error', '')) if ok else '失败 —— ' + str(e.get('error', ''))}")
+    lines.append("")
+
+    snaps = e.get("func_snapshots") or []
+    if snaps:
+        for s in snaps:
+            lines.append(f"### 函数 `{s['function']}`")
+            lines.append("")
+            lines.append("**补丁前**：")
+            lines.append("")
+            lines.append("```python")
+            lines.append(s.get("before", "（未能捕获）").rstrip())
+            lines.append("```")
+            lines.append("")
+            lines.append("**补丁后**：")
+            lines.append("")
+            lines.append("```python")
+            lines.append(s.get("after", "（未能捕获）").rstrip())
+            lines.append("```")
+            lines.append("")
+    else:
+        # 旧账本条目（无函数快照）：退化为 SEARCH/REPLACE 片段展示
+        for i, b in enumerate(e.get("blocks") or [], 1):
+            lines.append(f"### 补丁块 {i}（旧条目，无函数快照）")
+            lines.append("")
+            lines.append("**SEARCH（锚定片段）**：")
+            lines.append("")
+            lines.append("```python")
+            lines.append(str(b.get("search", "")).rstrip())
+            lines.append("```")
+            lines.append("")
+            lines.append("**REPLACE（替换为）**：")
+            lines.append("")
+            lines.append("```python")
+            lines.append(str(b.get("replace", "")).rstrip())
+            lines.append("```")
+            lines.append("")
+    return "\n".join(lines)
+
+
+def render_round_patches(round_id: int):
+    """该局账本条目 → data/runs/round_N/patches.md（人工 debug 阅读用）。
+
+    幂等：按 round_id 全量过滤重渲染，重跑同局不产生重复段落；
+    只含该局条目，绝不回流任何 LLM prompt。
+    """
+    entries = _load_history_round(round_id)
+    if not entries:
+        return None
+    header = [
+        f"# 补丁尝试历史 — round {round_id}",
+        "",
+        f"目标文件：`game/tetris_buggy.py` · 共 {len(entries)} 次尝试"
+        f" · 成功 {sum(1 for e in entries if e.get('ok'))} 次"
+        f" · 生成于 {time.strftime('%Y-%m-%d %H:%M:%S')}",
+        "",
+    ]
+    md = "\n".join(header) + "\n" + "\n\n".join(
+        _render_entry_md(e, len(entries)) for e in entries
+    )
+    out = RUNS_ROOT / f"round_{round_id}" / "patches.md"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(md, encoding="utf-8")
+    return out
+
+
 def node_wrapup(state: dict) -> dict:
     acc = TokenDelta()
     acc.step("wrapup")
@@ -43,6 +139,7 @@ def node_wrapup(state: dict) -> dict:
     fixed = list(state.get("fixed_phenomena") or [])
     rejected = list(state.get("rejected") or [])
     n_attempts_logged = _append_patch_history(state)
+    render_round_patches(round_id)   # 同步渲染 patches.md（人工审计可读版）
 
     # ---- fixes.json（跨局累积，phenomenon_id 去重） ----
     data = _load_fixes()
