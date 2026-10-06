@@ -52,23 +52,29 @@ class TokenDelta:
     def __init__(self):
         self.d = {
             "n_llm_calls": 0, "n_graph_steps": 0, "prompt_tokens": 0,
-            "completion_tokens": 0, "by_agent": {}, "errors": [],
+            "completion_tokens": 0, "cached_tokens": 0,
+            "by_agent": {}, "errors": [],
         }
 
     def step(self, node: str) -> None:
         self.d["n_graph_steps"] += 1
-        self.d["by_agent"].setdefault(node, {"n_calls": 0, "prompt_tokens": 0, "completion_tokens": 0})
+        self.d["by_agent"].setdefault(node, {
+            "n_calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0})
 
     def usage(self, agent: str, result) -> None:
         p = getattr(result, "prompt_tokens", 0)
         c = getattr(result, "completion_tokens", 0)
+        cached = getattr(result, "cached_tokens", 0) or 0
         self.d["n_llm_calls"] += 1
         self.d["prompt_tokens"] += p
         self.d["completion_tokens"] += c
-        agg = self.d["by_agent"].setdefault(agent, {"n_calls": 0, "prompt_tokens": 0, "completion_tokens": 0})
+        self.d["cached_tokens"] = self.d.get("cached_tokens", 0) + cached
+        agg = self.d["by_agent"].setdefault(agent, {
+            "n_calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "cached_tokens": 0})
         agg["n_calls"] += 1
         agg["prompt_tokens"] += p
         agg["completion_tokens"] += c
+        agg["cached_tokens"] = agg.get("cached_tokens", 0) + cached
 
     def error(self, msg: str) -> None:
         self.d["errors"].append(msg)
@@ -81,5 +87,6 @@ def init_tokens() -> dict:
     """兼容保留：空 tokens 基值（reducer 模式下节点一般用 TokenDelta.out()）。"""
     return {
         "n_llm_calls": 0, "n_graph_steps": 0, "prompt_tokens": 0,
-        "completion_tokens": 0, "by_agent": {}, "errors": [],
+        "completion_tokens": 0, "cached_tokens": 0,
+        "by_agent": {}, "errors": [],
     }

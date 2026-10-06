@@ -370,6 +370,8 @@ def main() -> int:
             "n_llm_calls": (row.get("tokens") or {}).get("n_llm_calls", 0),
             "prompt_tokens": (row.get("tokens") or {}).get("prompt_tokens", 0),
             "completion_tokens": (row.get("tokens") or {}).get("completion_tokens", 0),
+            "cached_tokens": (row.get("tokens") or {}).get("cached_tokens", 0),
+            "cache_hit_rate": (row.get("tokens") or {}).get("cache_hit_rate", 0.0),
             "n_graph_steps": row.get("n_graph_steps", 0),
             "duration_sec": row.get("duration_sec", 0.0),
         })

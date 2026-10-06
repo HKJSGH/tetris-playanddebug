@@ -12,12 +12,14 @@ from typing import Annotated, Any, TypedDict
 def merge_tokens(a: dict | None, b: dict | None) -> dict:
     """tokens 并发合并 reducer：数值相加、by_agent 累加、errors 拼接。"""
     a, b = a or {}, b or {}
-    keys = ("n_llm_calls", "n_graph_steps", "prompt_tokens", "completion_tokens")
+    keys = ("n_llm_calls", "n_graph_steps", "prompt_tokens", "completion_tokens", "cached_tokens")
     by: dict = {}
+    agent_keys = ("n_calls", "prompt_tokens", "completion_tokens", "cached_tokens")
     for src in (a, b):
         for agent, v in src.get("by_agent", {}).items():
-            tgt = by.setdefault(agent, {"n_calls": 0, "prompt_tokens": 0, "completion_tokens": 0})
-            for k in tgt:
+            tgt = by.setdefault(agent, {"n_calls": 0, "prompt_tokens": 0,
+                                        "completion_tokens": 0, "cached_tokens": 0})
+            for k in agent_keys:
                 tgt[k] += v.get(k, 0)
     return {
         **{k: a.get(k, 0) + b.get(k, 0) for k in keys},

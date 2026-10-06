@@ -115,6 +115,12 @@ def node_wrapup(state: dict) -> dict:
             "n_llm_calls": tokens["n_llm_calls"],
             "prompt_tokens": tokens["prompt_tokens"],
             "completion_tokens": tokens["completion_tokens"],
+            # 前缀缓存命中 tokens 与命中率（cached/prompt；provider 不透传时为 0）
+            "cached_tokens": tokens.get("cached_tokens", 0),
+            "cache_hit_rate": (
+                round(tokens.get("cached_tokens", 0) / tokens["prompt_tokens"], 4)
+                if tokens["prompt_tokens"] else 0.0
+            ),
             "by_agent": tokens["by_agent"],
         },
         "n_graph_steps": tokens["n_graph_steps"],

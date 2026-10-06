@@ -45,6 +45,7 @@ class ChatResult:
     text: str
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    cached_tokens: int = 0        # 前缀缓存命中 tokens（评估「命中/总 prompt」用；无则 0）
 
 
 class MockLLM:
@@ -79,10 +80,16 @@ class OpenAICompatLLM:
                     # OpenRouter 偶发 200 但响应体无 choices/content（上游过载），可重试
                     raise RuntimeError(f"响应无内容: {dump}")
                 usage = getattr(resp, "usage", None)
+                # 缓存命中 tokens：OpenAI 协议 usage.prompt_tokens_details.cached_tokens，
+                # DeepSeek 官方协议 usage.prompt_cache_hit_tokens；两者取非 None 者
+                details = getattr(usage, "prompt_tokens_details", None)
+                cached = (getattr(details, "cached_tokens", None)
+                          or getattr(usage, "prompt_cache_hit_tokens", None) or 0)
                 return ChatResult(
                     text=text,
                     prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
                     completion_tokens=getattr(usage, "completion_tokens", 0) or 0,
+                    cached_tokens=cached,
                 )
             except Exception as e:  # noqa: BLE001
                 last = e
