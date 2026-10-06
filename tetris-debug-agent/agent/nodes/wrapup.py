@@ -1,15 +1,28 @@
-r"""wrapup — 纯代码节点：合并 fixes.json（跨局记忆）+ 尝试历史落盘 + 写 eval/round_N.json。"""
+r"""wrapup — 收尾节点：fixes.json 合并（跨局记忆）+ 尝试历史落盘 + patches.md 渲染 + eval/round_N.json。
+
+唯一允许 LLM 失败容忍的节点：失败改法教训（lesson）属装饰性总结，LLM 任何
+失败（连接/解析）都退回纯代码摘要并留痕 errors，绝不中止——此时数据落盘
+优先。修复链路上的 LLM 调用仍严格 fail-fast（见各节点 docstring）。
+"""
 from __future__ import annotations
 
 import json
 import time
 
 from agent.config import (
-    EVAL_DIR, FIXES_PATH, PATCH_HISTORY_PATH, RUNS_ROOT,
+    EVAL_DIR, FIXES_PATH, LESSON_MAX_CHARS, PATCH_HISTORY_PATH, RUNS_ROOT,
     TEXT_MODEL, TEXT_API_KEY_ENV, VISION_MODEL, VISION_API_KEY_ENV,
 )
-from agent.nodes.common import catalog_by_ph, TokenDelta
-from agent.tools.llm import llm_available
+from agent.nodes.common import catalog_by_ph, get_llm_for, TokenDelta
+from agent.tools.llm import llm_available, parse_json_text
+
+LESSON_SYSTEM = (
+    "你是调试复盘助手。输入是若干个修复失败的假设及各自的补丁尝试记录"
+    "（每次尝试的失败原因与替换片段首行）。请为每个假设总结一条「失败改法教训」："
+    "这些尝试共同的方向是什么、为什么走不通，一句话（不超过 60 字），"
+    "供后续诊断与修复避免重复相同方向。只依据给定材料归纳。"
+    '只输出 JSON：{"<假设问题文本>": "教训"}'
+)
 
 
 def _load_fixes() -> dict:
@@ -130,6 +143,78 @@ def render_round_patches(round_id: int):
     return out
 
 
+def _lesson_fallback(problem: str, attempt_log: list[dict]) -> str:
+    """纯代码降级摘要：该问题历次替换片段首行去重拼接（无 LLM / LLM 失败时保底）。"""
+    heads: list[str] = []
+    for a in attempt_log:
+        if str(a.get("problem", "")).strip() != problem or a.get("ok"):
+            continue
+        for b in a.get("blocks") or []:
+            lines = str(b.get("replace", "")).strip().splitlines()
+            if lines:
+                head = lines[0].strip()
+                if head and head not in heads:
+                    heads.append(head)
+    if not heads:
+        return ""
+    return ("历次替换片段: " + "；".join(heads[:3]))[:LESSON_MAX_CHARS]
+
+
+def _attach_lessons(state: dict, rejected: list[dict], acc: TokenDelta) -> list[dict]:
+    """失败改法教训（lesson）：每个被否决假设的失败方向一句话语义总结。
+
+    fail-fast 例外（有意设计，见模块 docstring）：LLM 连接/解析失败一律
+    退回纯代码摘要并留痕 errors，不中止。教训随 rejected 进 fixes.json，
+    下一局经 ingest.rejected_prior 注入诊断 prompt（带条数与长度上限）。
+    """
+    if not rejected:
+        return rejected
+    attempt_log = state.get("attempt_log") or []
+    records: dict[str, list[dict]] = {}
+    for r in rejected:
+        p = str(r.get("problem", "")).strip()
+        if not p:
+            continue
+        atts = []
+        for a in attempt_log:
+            if str(a.get("problem", "")).strip() != p or a.get("ok"):
+                continue
+            rep_head = next((str(b.get("replace", "")).strip().splitlines()[0][:80]
+                             for b in a.get("blocks") or []
+                             if str(b.get("replace", "")).strip()), "")
+            atts.append({
+                "attempt": a.get("attempt"),
+                "失败原因": str(a.get("error", ""))[:120],
+                "替换片段首行": rep_head,
+            })
+        if atts:
+            records[p] = atts
+
+    lessons: dict[str, str] = {}
+    if records and state.get("mode", "mock") != "mock" and llm_available("text"):
+        try:
+            llm = get_llm_for(state.get("mode", "mock"), "text")
+            result = llm.chat(
+                [{"role": "system", "content": LESSON_SYSTEM},
+                 {"role": "user", "content": json.dumps(records, ensure_ascii=False)}],
+                temperature=0.2,
+            )
+            acc.usage("wrapup", result)
+            data = parse_json_text(result.text)
+            if isinstance(data, dict):
+                lessons = {str(k): str(v).strip()[:LESSON_MAX_CHARS]
+                           for k, v in data.items() if str(v).strip()}
+        except Exception as e:  # noqa: BLE001 — 收尾总结失败不中止（有意设计）
+            acc.error(f"wrapup: 失败改法总结 LLM 失败，退回纯代码摘要 {e!r:.80}")
+
+    out = []
+    for r in rejected:
+        p = str(r.get("problem", "")).strip()
+        lesson = lessons.get(p) or _lesson_fallback(p, attempt_log)
+        out.append({**r, "lesson": lesson} if lesson else r)
+    return out
+
+
 def node_wrapup(state: dict) -> dict:
     acc = TokenDelta()
     acc.step("wrapup")
@@ -137,7 +222,7 @@ def node_wrapup(state: dict) -> dict:
     round_id = state.get("round_id", 0)
     catalog = catalog_by_ph()
     fixed = list(state.get("fixed_phenomena") or [])
-    rejected = list(state.get("rejected") or [])
+    rejected = _attach_lessons(state, list(state.get("rejected") or []), acc)
     n_attempts_logged = _append_patch_history(state)
     render_round_patches(round_id)   # 同步渲染 patches.md（人工审计可读版）
 

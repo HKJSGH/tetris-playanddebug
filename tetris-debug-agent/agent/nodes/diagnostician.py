@@ -2,7 +2,10 @@ r"""diagnostician — LLM 节点：三路证据 → 假设清单（自然语言�
 
 agent 不知道现象目录/bug 清单：假设的 problem 完全由探针告警证据、玩家
 症状、视觉发现归纳而来（phenomenon_id 由 tester 的测试归因反推，框架内部
-key）。首次进入生成（或兜底生成）假设清单；再次进入取下一个假设。
+key）。首次进入生成（或兜底生成）假设清单；再次进入推进到下一个假设；
+当前假设清单已检验完（全部假设处理完或本批上限用完）且本局有被否决的
+实证时，携带「原始证据 + 修复失败的实证」重诊断一轮（轮数上限
+MAX_REDIAG_ROUNDS），产出下一批假设——补上 tester 侧测试证据的回流闭环。
 兜底 hypotheses_from_probes 为纯 Python：探针 signal → 问题假设（evidence
 本身即现象级描述），suspect_function 留空由 patcher 全函数扫描。
 
@@ -14,6 +17,7 @@ from __future__ import annotations
 
 import json
 
+from agent.config import MAX_HYPOTHESES, MAX_REDIAG_ROUNDS
 from agent.nodes.common import get_llm_for, ph_to_b, TokenDelta
 from agent.tools.llm import llm_available, parse_json_text
 
@@ -27,7 +31,8 @@ SYSTEM = (
     '4. 输出 JSON 数组：[{"problem": "问题描述", "suspect_function": "函数名",'
     ' "confidence": 0-1, "rationale": "理由", "evidence": ["证据要点"]}]\n'
     "5. already_fixed 中的问题已修复，勿再提出；previously_rejected 是此前局尝试"
-    "修复未通过验证的问题，除非本局有新的明确证据，否则不要重复提出。\n"
+    "修复未通过验证的问题（附改法教训，即此前失败的方向），除非本局有新的明确证据，"
+    "否则不要重复提出相同问题或相同改法方向。\n"
     "只依据给定材料归纳，不要编造未出现的现象。"
 )
 
@@ -94,77 +99,41 @@ def _norm_fn(raw: str, names: set[str]) -> str:
     return fn
 
 
-def node_diagnostician(state: dict) -> dict:
-    acc = TokenDelta()
-    acc.step("diagnostician")
+def _user_payload(state: dict, extra: dict | None = None) -> dict:
+    """诊断输入（键序即缓存前缀：跨局稳定段在前、逐局变化段居后、附加段最后）。
 
-    cursor = state.get("hypothesis_cursor", -1)
-    hypotheses = state.get("hypotheses") or []
-
-    # 再次进入：推进到下一个假设（跳过已修复/已否决的同一问题文本）
-    if hypotheses:
-        done = ({str(f.get("hypothesis", "")).strip() for f in state.get("fixed_phenomena", [])}
-                | {str(r.get("problem", "")).strip() for r in state.get("rejected", [])}) - {""}
-        nxt = cursor + 1
-        while nxt < len(hypotheses) and str(hypotheses[nxt].get("problem", "")).strip() in done:
-            nxt += 1
-        if nxt >= len(hypotheses) or nxt >= state.get("max_hypotheses", 5):
-            return {**acc.out(), "current_hypothesis": None, "hypothesis_cursor": nxt}
-        return {
-            **acc.out(),
-            "hypothesis_cursor": nxt,
-            "current_hypothesis": hypotheses[nxt],
-            "patch_attempts": 0,
-        }
-
-    # 首次进入：从三路证据生成假设
+    candidate_functions 是最大且跨局不变的前缀段；already_fixed /
+    previously_rejected 跨局缓增；三路证据逐局变化；extra（重诊断实证）
+    最易变，永远垫底——保证重诊断多次调用时前缀尽量逐字稳定。
+    """
     report = state["probe_report"]
-    mode = state.get("mode", "mock")
     srcmap = state.get("srcmap") or {}
-    # 优化建议旁路：只把「报异常」类症状喂给诊断；「提期望」类建议不进
-    # 假设/补丁循环（由 wrapup 记入 bonus_findings，见 feedback.py 分拣说明）
-    symptoms = [s for s in (state.get("feedback_symptoms") or [])
-                if s.get("kind") != "suggestion"]
-    vision = state.get("vision_findings") or []
-    fixed_prior = list(state.get("fixed_prior") or [])
-    rejected_prior = list(state.get("rejected_prior") or [])
-    fixed_prior_ph = list(state.get("fixed_prior_ph") or [])
-
-    if mode == "mock" or not llm_available("text"):
-        hyps = _drop_fixed(hypotheses_from_probes(report), fixed_prior_ph)
-        first = hyps[0] if hyps else None
-        return {**acc.out(), "hypotheses": hyps, "hypothesis_cursor": 0 if first else -1,
-                "current_hypothesis": first, "patch_attempts": 0}
-
-    llm = get_llm_for(mode, "text")
     signal_evidence = [
         str(e) for v in report.get("probes", {}).values() if v["status"] == "signal"
         for e in v.get("evidence", [])
     ]
+    symptoms = [s for s in (state.get("feedback_symptoms") or [])
+                if s.get("kind") != "suggestion"]
     user = {
-        "probe_signals": signal_evidence or "（无）",
-        "vision_findings": vision or "（无截图或未启用视觉）",
-        "player_symptoms": symptoms or "（无）",
         "candidate_functions": sorted(srcmap.keys()),
-        "already_fixed": fixed_prior or "（无）",
-        "previously_rejected": rejected_prior or "（无）",
+        "already_fixed": list(state.get("fixed_prior") or []) or "（无）",
+        "previously_rejected": list(state.get("rejected_prior") or []) or "（无）",
+        "probe_signals": signal_evidence or "（无）",
+        "vision_findings": (list(state.get("vision_findings") or [])
+                            or "（无截图或未启用视觉）"),
+        "player_symptoms": symptoms or "（无）",
     }
-    # llm.chat 不捕获：live 下 LLMError 冒泡中止整局（fail-fast，不静默兜底）
-    result = llm.chat(
-        [{"role": "system", "content": SYSTEM},
-         {"role": "user", "content": json.dumps(user, ensure_ascii=False)}],
-        temperature=0.2,
-    )
-    acc.usage("diagnostician", result)
-    try:
-        data = parse_json_text(result.text)
-    except Exception as e:  # noqa: BLE001 — 解析失败=输出质量问题，走纯代码兜底
-        acc.error(f"diagnostician: 解析失败 {e!r}")
-        data = []
+    if extra:
+        user.update(extra)
+    return user
 
+
+def _validated_hyps(data, srcmap: dict, report: dict, fixed_prior: list[str],
+                    banned_problems: set[str], acc: TokenDelta) -> list[dict]:
+    """LLM 输出 → 合法假设清单（归一化校验 + 去重 + 已修复/已否决剔除）。"""
     fn_names = set(srcmap)
     hyps: list[dict] = []
-    seen_problem: set[str] = set()
+    seen = set(banned_problems)
     for i, d in enumerate(data if isinstance(data, list) else []):
         if not isinstance(d, dict):
             continue
@@ -176,10 +145,10 @@ def node_diagnostician(state: dict) -> dict:
         if fn and fn not in srcmap:
             acc.error(f"diagnostician: 丢弃假设[{i}] fn={d.get('suspect_function')!r} 不在源码图")
             continue
-        if problem in seen_problem or problem in fixed_prior:
-            acc.error(f"diagnostician: 丢弃假设[{i}] {problem[:40]!r}（重复或已修复）")
+        if problem in seen:
+            acc.error(f"diagnostician: 丢弃假设[{i}] {problem[:40]!r}（重复/已修复/已否决）")
             continue
-        seen_problem.add(problem)
+        seen.add(problem)
         hyp_evidence = [str(x) for x in d.get("evidence", [])]
         hyps.append({
             "hypothesis_id": f"H{len(hyps) + 1}",
@@ -192,8 +161,141 @@ def node_diagnostician(state: dict) -> dict:
             # 纯代码回填的内部弱归因（评估账本用；不进任何 prompt）
             "probe_key": _match_probe_key(hyp_evidence, report),
         })
+    return hyps
+
+
+def _rediagnose_or_finish(state: dict, cursor_pos: int, acc: TokenDelta) -> dict:
+    """当前假设清单已检验完：本局有失败实证且轮数未用完 → 重诊断一轮，否则收场。
+
+    失败语义与首次诊断一致：live 下 llm.chat 失败（LLMError）冒泡中止整局；
+    解析失败/未产出可用新假设 → 记 errors 后收场（rediag_rounds 仍 +1，防循环）。
+    """
+    finished = {**acc.out(), "hypothesis_cursor": cursor_pos, "current_hypothesis": None}
+    mode = state.get("mode", "mock")
+    rediag_rounds = state.get("rediag_rounds", 0)
+    if (mode == "mock" or not llm_available("text")
+            or rediag_rounds >= MAX_REDIAG_ROUNDS):
+        return finished
+    rejected = state.get("rejected") or []
+    attempt_log = state.get("attempt_log") or []
+    if not rejected and not any(not a.get("ok") for a in attempt_log):
+        return finished     # 无失败实证（假设全部修复），无需重诊断
+
+    # 重诊断实证段（易变信息，永远在 payload 末尾，见 _user_payload 键序说明）
+    failures_by_problem: dict[str, list[str]] = {}
+    for a in attempt_log:
+        p = str(a.get("problem", "")).strip()
+        err = str(a.get("error", "") or "").strip()
+        if p and not a.get("ok") and err:
+            errs = failures_by_problem.setdefault(p, [])
+            if err[:120] not in errs:
+                errs.append(err[:120])
+    extra = {
+        "本局已修复问题": [str(f.get("hypothesis", "")).strip()
+                       for f in state.get("fixed_phenomena") or []] or "（无）",
+        "本局已否决假设": [
+            {"problem": str(r.get("problem", "")),
+             "attempts": r.get("attempts", 0),
+             "改法教训": str(r.get("lesson", "") or ""),
+             "最后失败": str(r.get("last_error", ""))[:120]}
+            for r in rejected],
+        "本局失败原因汇总": failures_by_problem or "（无）",
+        "重诊断指令": (
+            f"以上假设清单已检验完（已修复 {len(state.get('fixed_phenomena') or [])} 项、"
+            f"已否决 {len(rejected)} 项）。请基于原始证据与上述修复失败的实证，"
+            "重新归纳尚未尝试的问题假设：不要重复已修复或已否决的问题；"
+            "也不要提出与改法教训相同方向的假设。"
+            "若证据不足以提出新假设，输出空数组 []。"
+        ),
+    }
+    llm = get_llm_for(mode, "text")
+    result = llm.chat(
+        [{"role": "system", "content": SYSTEM},
+         {"role": "user", "content": json.dumps(_user_payload(state, extra), ensure_ascii=False)}],
+        temperature=0.2,
+    )
+    acc.usage("diagnostician", result)
+    try:
+        data = parse_json_text(result.text)
+    except Exception as e:  # noqa: BLE001 — 解析失败=输出质量问题
+        acc.error(f"diagnostician: 重诊断解析失败 {e!r}")
+        data = []
+
+    banned = (set(state.get("fixed_prior") or [])
+              | {str(f.get("hypothesis", "")).strip() for f in state.get("fixed_phenomena", [])}
+              | {str(r.get("problem", "")).strip() for r in rejected}) - {""}
+    new_hyps = _validated_hyps(data, state.get("srcmap") or {}, state["probe_report"],
+                               state.get("fixed_prior") or [], banned, acc)[:MAX_HYPOTHESES]
+    if not new_hyps:
+        acc.error("diagnostician: 重诊断未产出可用新假设，收场")
+        return {**finished, "rediag_rounds": rediag_rounds + 1}
+    old = list(state.get("hypotheses") or [])
+    return {
+        **acc.out(),
+        "hypotheses": old + new_hyps,
+        "hypothesis_cursor": len(old),
+        "hypothesis_batch_start": len(old),     # 新批次从旧清单末尾开始
+        "current_hypothesis": new_hyps[0],
+        "patch_attempts": 0,
+        "rediag_rounds": rediag_rounds + 1,
+    }
+
+
+def node_diagnostician(state: dict) -> dict:
+    acc = TokenDelta()
+    acc.step("diagnostician")
+
+    cursor = state.get("hypothesis_cursor", -1)
+    hypotheses = state.get("hypotheses") or []
+
+    # 再次进入：推进到下一个假设（跳过已修复/已否决的同一问题文本）
+    if hypotheses:
+        done = ({str(f.get("hypothesis", "")).strip() for f in state.get("fixed_phenomena", [])}
+                | {str(r.get("problem", "")).strip() for r in state.get("rejected", [])}) - {""}
+        batch_start = state.get("hypothesis_batch_start", 0)
+        nxt = cursor + 1
+        while nxt < len(hypotheses) and str(hypotheses[nxt].get("problem", "")).strip() in done:
+            nxt += 1
+        if nxt < len(hypotheses) and (nxt - batch_start) < state.get("max_hypotheses", MAX_HYPOTHESES):
+            return {
+                **acc.out(),
+                "hypothesis_cursor": nxt,
+                "current_hypothesis": hypotheses[nxt],
+                "patch_attempts": 0,
+            }
+        # 当前假设清单已检验完（全部假设处理完或本批上限用完）→ 重诊断或收场
+        return _rediagnose_or_finish(state, nxt, acc)
+
+    # 首次进入：从三路证据生成假设
+    mode = state.get("mode", "mock")
+    srcmap = state.get("srcmap") or {}
+    fixed_prior = list(state.get("fixed_prior") or [])
+    fixed_prior_ph = list(state.get("fixed_prior_ph") or [])
+
+    if mode == "mock" or not llm_available("text"):
+        hyps = _drop_fixed(hypotheses_from_probes(state["probe_report"]), fixed_prior_ph)
+        first = hyps[0] if hyps else None
+        return {**acc.out(), "hypotheses": hyps, "hypothesis_cursor": 0 if first else -1,
+                "current_hypothesis": first, "patch_attempts": 0}
+
+    # llm.chat 不捕获：live 下 LLMError 冒泡中止整局（fail-fast，不静默兜底）
+    llm = get_llm_for(mode, "text")
+    result = llm.chat(
+        [{"role": "system", "content": SYSTEM},
+         {"role": "user", "content": json.dumps(_user_payload(state), ensure_ascii=False)}],
+        temperature=0.2,
+    )
+    acc.usage("diagnostician", result)
+    try:
+        data = parse_json_text(result.text)
+    except Exception as e:  # noqa: BLE001 — 解析失败=输出质量问题，走纯代码兜底
+        acc.error(f"diagnostician: 解析失败 {e!r}")
+        data = []
+
+    hyps = _validated_hyps(data, srcmap, state["probe_report"],
+                           fixed_prior, set(fixed_prior), acc)
     if not hyps:
-        hyps = _drop_fixed(hypotheses_from_probes(report), fixed_prior_ph)
+        hyps = _drop_fixed(hypotheses_from_probes(state["probe_report"]), fixed_prior_ph)
         acc.error("diagnostician: LLM 假设不可用，走纯代码兜底")
     first = hyps[0] if hyps else None
     return {**acc.out(), "hypotheses": hyps, "hypothesis_cursor": 0 if first else -1,

@@ -22,7 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent.config import (  # noqa: E402
     MAX_HYPOTHESES,
-    MAX_PATCH_ATTEMPTS,
+    PATCH_BUDGET_PER_HYPOTHESIS,
+    PATCH_BUDGET_TOTAL,
     RUNS_ROOT,
     SANDBOX_ROOT,
 )
@@ -220,7 +221,8 @@ def _digest(node: str, delta: dict) -> str:
 
 
 def run_round(app, round_id: int, mode: str, max_patch_attempts: int,
-              max_hypotheses: int, verbose: bool = False) -> tuple[dict, Path]:
+              max_hypotheses: int, verbose: bool = False,
+              max_patch_total: int = PATCH_BUDGET_TOTAL) -> tuple[dict, Path]:
     """跑一局。黑板流始终写日志文件；echo=verbose 决定是否同时打印到控制台。"""
     state = {
         "round_id": round_id,
@@ -228,6 +230,7 @@ def run_round(app, round_id: int, mode: str, max_patch_attempts: int,
         "mode": mode,
         "max_patch_attempts": max_patch_attempts,
         "max_hypotheses": max_hypotheses,
+        "max_patch_total": max_patch_total,
         "start_ts": time.time(),
     }
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
@@ -299,10 +302,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--round", type=int)
     parser.add_argument("--mode", choices=["mock", "llm"], default="mock")
-    parser.add_argument("--max-patch-attempts", type=int, default=MAX_PATCH_ATTEMPTS,
-                        help="单假设补丁重试上限（缺省读 agent/config.py）")
+    parser.add_argument("--max-patch-attempts", type=int, default=PATCH_BUDGET_PER_HYPOTHESIS,
+                        help="单假设补丁预算（用完即放弃该假设换下一个；缺省读 agent/config.py）")
+    parser.add_argument("--max-patch-total", type=int, default=PATCH_BUDGET_TOTAL,
+                        help="单局补丁总预算（所有假设共享，用完即收场；缺省读 agent/config.py）")
     parser.add_argument("--max-hypotheses", type=int, default=MAX_HYPOTHESES,
-                        help="每局最多推进的假设数（缺省读 agent/config.py）")
+                        help="每批假设清单最多推进的假设数（缺省读 agent/config.py）")
     parser.add_argument("--campaign", action="store_true")
     parser.add_argument("--rounds", type=int, default=20)
     parser.add_argument("--replay", action="store_true", help="忽略已存在的 eval 记录，强制重跑")
@@ -319,7 +324,8 @@ def main() -> int:
         before_ph = {f["phenomenon_id"] for f in _read_fixed()}
         try:
             final, log_path = run_round(app, args.round, args.mode, args.max_patch_attempts,
-                                        args.max_hypotheses, args.verbose)
+                                        args.max_hypotheses, args.verbose,
+                                        args.max_patch_total)
         except LLMError:
             return 1   # 报错已在 run_round 打印；零落盘，退出码 1
         print_summary(final)
@@ -348,7 +354,8 @@ def main() -> int:
         session_rounds.append(rid)
         try:
             final, log_path = run_round(app, rid, args.mode, args.max_patch_attempts,
-                                        args.max_hypotheses, args.verbose)
+                                        args.max_hypotheses, args.verbose,
+                                        args.max_patch_total)
         except LLMError:
             # 方案 A：LLM 不可用 = 全局性故障，立即中止整场。已完成局照常
             # 有效（eval 已落盘）；续跑语义下次从断的那局重新开始。

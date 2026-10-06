@@ -1,10 +1,12 @@
 """graph — LangGraph StateGraph 组装。
 
 拓扑：START→ingest→(vision ∥ feedback)→diagnostician→patcher→tester；
-diagnostician 条件边：有 current_hypothesis→patcher｜无（clean 局/假设耗尽）→wrapup，
-避免无假设时白走 patcher/tester；
-tester 条件边：passed→wrapup｜fail<3→patcher（带失败日志）｜
-fail≥3 且有下一假设→diagnostician（换假设）｜否则→wrapup。
+diagnostician 条件边：有 current_hypothesis→patcher｜无（clean 局/当前假设
+清单已检验完）→wrapup，避免无假设时白走 patcher/tester；
+tester 条件边：passed→wrapup｜总预算未用完且单假设预算未用完→patcher｜
+假设被否决（预算用完/提前放弃当前假设）且有下一假设→diagnostician｜
+当前假设清单已检验完且重诊断轮数未用完→diagnostician（携带失败实证）｜
+否则→wrapup。
 """
 from __future__ import annotations
 

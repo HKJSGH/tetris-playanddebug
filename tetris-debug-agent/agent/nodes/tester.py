@@ -22,7 +22,10 @@ import json
 import re
 import time
 
-from agent.config import FIXES_PATH, MAX_PATCH_ATTEMPTS, TARGET_FILE, TESTS_DIR
+from agent.config import (
+    FIXES_PATH, GIVEUP_REPEATS, MAX_REDIAG_ROUNDS, PATCH_BUDGET_PER_HYPOTHESIS,
+    PATCH_BUDGET_TOTAL, TARGET_FILE, TESTS_DIR,
+)
 from agent.nodes.common import b_to_ph, ph_to_b, TokenDelta
 from agent.tools.patch import apply_patch, revert_backup, run_pytest
 
@@ -156,6 +159,23 @@ def _attempt_entry(state: dict, hyp: dict, attempts: int, n_blocks: int) -> dict
     }
 
 
+def _repeated_failure(problem: str, attempt_log: list[dict], current_error: str) -> int:
+    """当前问题同一失败原因的出现次数（含本次）；≥ GIVEUP_REPEATS 即原地打转。
+
+    纯代码比对（零 LLM 成本）：失败原因逐字相同说明 patcher 在同一思路上
+    反复产出等价补丁，继续重试是白烧预算。
+    """
+    if not problem or not current_error:
+        return 0
+    n = 1
+    for a in attempt_log:
+        if (str(a.get("problem", "")).strip() == problem
+                and not a.get("ok")
+                and str(a.get("error", "")) == current_error):
+            n += 1
+    return n
+
+
 def node_tester(state: dict) -> dict:
     acc = TokenDelta()
     acc.step("tester")
@@ -163,10 +183,12 @@ def node_tester(state: dict) -> dict:
     patch = state.get("patch") or {"blocks": []}
     attempts = state.get("patch_attempts", 0) + 1
     fixed = list(state.get("fixed_phenomena") or [])
-    max_att = state.get("max_patch_attempts", MAX_PATCH_ATTEMPTS)
+    max_att = state.get("max_patch_attempts", PATCH_BUDGET_PER_HYPOTHESIS)
     problem = str(hyp.get("problem", "")).strip()
 
-    result = {"patch_attempts": attempts, **acc.out()}
+    # 全局补丁预算：本局所有假设共享，tester 是唯一计数点
+    total = state.get("patch_attempts_total", 0) + 1
+    result = {"patch_attempts": attempts, "patch_attempts_total": total, **acc.out()}
 
     blocks = patch.get("blocks") or []
     entry = _attempt_entry(state, hyp, attempts, len(blocks))
@@ -251,9 +273,19 @@ def node_tester(state: dict) -> dict:
                 hyp["last_error"] = "pytest 未收集到任何测试（环境异常），已回滚"
             else:
                 still = sorted(broken_b - fixed_b) or ["（无失败明细）"]
-                hyp["last_error"] = f"补丁未使任何受控测试转绿（仍失败: {','.join(still[:6])}）"
+                msg = f"补丁未使任何受控测试转绿（仍失败: {','.join(still[:6])}）"
+                # 失败信息保真：失败测试集合与上次完全相同 = 改动没碰到任何
+                # 失败路径，大概率改错位置——把这一事实明确告诉 patcher
+                prev = next((a for a in reversed(state.get("attempt_log") or [])
+                             if str(a.get("problem", "")).strip() == problem
+                             and isinstance(a.get("broken_b"), list)), None)
+                if prev is not None and prev["broken_b"] == sorted(broken_b):
+                    msg += ("；本次改动后失败测试集合与上次完全相同"
+                            "（改动未影响任何失败测试，疑似改错位置）")
+                hyp["last_error"] = msg
             entry["error"] = hyp["last_error"]
             entry["blocks"] = blocks
+            entry["broken_b"] = sorted(broken_b)   # 失败集合快照（审计+跨尝试对比）
             result["test_result"] = {
                 "ok": False, "stage": "test",
                 "passed": tr.passed, "failed": tr.failed, "skipped": tr.skipped,
@@ -262,8 +294,21 @@ def node_tester(state: dict) -> dict:
             }
             revert_backup(applied.backup_path)
 
-    # 失败：未耗尽 → 回 patcher；耗尽 → 在节点内记 rejected（路由函数无法写 state）
-    if attempts < max_att:
+    # 提前放弃当前假设：同一失败原因在该假设尝试历史中重复出现 ≥
+    # GIVEUP_REPEATS 次（含本次）——patcher 原地打转的实证，不再烧完单假设
+    # 预算，直接记 rejected 换下一个假设
+    early_giveup = (_repeated_failure(problem, state.get("attempt_log") or [],
+                                      entry.get("error", "")) >= GIVEUP_REPEATS)
+    if early_giveup:
+        entry["error"] += f"（同一失败原因已重复 {GIVEUP_REPEATS} 次，提前放弃当前假设）"
+        hyp["last_error"] = entry["error"]
+        if result.get("test_result"):
+            result["test_result"]["error"] = entry["error"]
+        result["current_hypothesis"] = hyp
+
+    # 失败：单假设预算未用完且未触发提前放弃 → 回 patcher；否则在节点内记
+    # rejected（路由函数无法写 state）
+    if attempts < max_att and not early_giveup:
         return result
     rejected = list(state.get("rejected") or [])
     if problem and problem not in {r.get("problem") for r in rejected}:
@@ -275,6 +320,8 @@ def node_tester(state: dict) -> dict:
             "phenomenon_id": b_to_ph(probe_key) if probe_key else "",
             "attempts": attempts,
             "last_error": hyp.get("last_error", ""),
+            # 放弃原因：预算用完（attempts_used_up）｜失败原因重复（repeated_failure）
+            "stop_reason": "repeated_failure" if early_giveup else "attempts_used_up",
         })
         result["rejected"] = rejected
     return result
@@ -284,20 +331,30 @@ def route_after_tester(state: dict) -> str:
     tr = state.get("test_result") or {}
     if tr.get("ok"):
         return "wrapup"
+    if state.get("patch_attempts_total", 0) >= state.get("max_patch_total", PATCH_BUDGET_TOTAL):
+        return "wrapup"     # 全局补丁预算用完，收场
     hyp = state.get("current_hypothesis") or {}
-    max_att = state.get("max_patch_attempts", MAX_PATCH_ATTEMPTS)
+    max_att = state.get("max_patch_attempts", PATCH_BUDGET_PER_HYPOTHESIS)
     rejected_problems = {r.get("problem") for r in state.get("rejected", [])}
     problem = str(hyp.get("problem", "")).strip()
-    if state.get("patch_attempts", 0) < max_att and problem and problem not in rejected_problems:
+    if (state.get("patch_attempts", 0) < max_att
+            and problem and problem not in rejected_problems):
         return "patcher"
-    # 当前假设已耗尽（记入 rejected）或无假设：找下一个可用假设
+    # 当前假设已否决（单假设预算用完或提前放弃）：找下一个可用假设
     done = ({str(f.get("hypothesis", "")).strip() for f in state.get("fixed_phenomena", [])}
             | rejected_problems) - {""}
+    batch_start = state.get("hypothesis_batch_start", 0)
     cursor = state.get("hypothesis_cursor", -1)
     hypotheses = state.get("hypotheses") or []
+    max_hyp = state.get("max_hypotheses", 5)
     nxt = cursor + 1
     while nxt < len(hypotheses) and str(hypotheses[nxt].get("problem", "")).strip() in done:
         nxt += 1
-    if nxt < len(hypotheses) and nxt < state.get("max_hypotheses", 5):
+    if nxt < len(hypotheses) and (nxt - batch_start) < max_hyp:
+        return "diagnostician"
+    # 当前假设清单已检验完（全部假设处理完或本批上限用完）：本局有被否决的
+    # 实证且重诊断轮数未用完 → 回 diagnostician 重诊断一轮，否则收场
+    if (state.get("rediag_rounds", 0) < MAX_REDIAG_ROUNDS
+            and state.get("rejected") and state.get("attempt_log")):
         return "diagnostician"
     return "wrapup"

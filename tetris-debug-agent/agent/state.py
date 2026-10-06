@@ -47,8 +47,8 @@ class PipelineState(TypedDict, total=False):
     round_id: int
     run_dir: str
     mode: str                       # mock | llm
-    max_patch_attempts: int
-    max_hypotheses: int
+    max_patch_attempts: int         # 单假设补丁预算（PATCH_BUDGET_PER_HYPOTHESIS）
+    max_hypotheses: int             # 每批假设清单最多推进的假设数
     start_ts: float
 
     # ingest 产物
@@ -69,10 +69,13 @@ class PipelineState(TypedDict, total=False):
     # 诊断 → 修复循环
     hypotheses: list[Hypothesis]
     hypothesis_cursor: int
+    hypothesis_batch_start: int     # 当前批假设清单的首条索引（重诊断开启新批次）
     current_hypothesis: Hypothesis | None
     patch: dict                     # {"blocks": [{"search","replace"}], "note": str}
     patch_error: str                # patcher 侧失败原因（未产出/解析失败），tester 记账用
-    patch_attempts: int             # 当前假设已用尝试次数
+    patch_attempts: int             # 当前假设已用补丁预算
+    patch_attempts_total: int       # 本局已用补丁总预算（所有假设共享）
+    rediag_rounds: int              # 假设清单已检验完后的重诊断已用轮数
     test_result: dict
     # 每次补丁尝试的完整记录（tester 每尝试追加 1 条；wrapup 落盘 patch_history.jsonl）
     attempt_log: Annotated[list, add]

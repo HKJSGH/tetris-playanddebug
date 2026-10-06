@@ -28,18 +28,19 @@ flowchart LR
     D -->|无假设| W[wrapup\nfixes.json+评估落盘]
     P --> T[tester\n应用补丁→pytest→保留/回滚]
     T -->|通过| W
-    T -->|未耗尽| P
-    T -->|换下一假设| D
-    T -->|假设耗尽| W
+    T -->|补丁预算未用完| P
+    T -->|假设被否决，换下一假设| D
+    T -->|清单已检验完，带实证重诊断| D
+    T -->|清单已检验完且重诊断轮数用完| W
     W --> E((END))
 ```
 
 - **ingest**：加载对局数据，运行 12 个纯代码探针（三态：signal / no_signal / no_evidence），读入 fixes.json 跨局记忆
 - **vision / feedback**：截图 + 文字反馈/报错 → 结构化发现，与探针证据三路互补
-- **diagnostician**：三路证据 → 自然语言假设清单（问题描述 + 嫌疑函数 + 置信度），**agent 不知道 bug 清单**，LLM 产出经归一化校验，不合法直接丢弃
+- **diagnostician**：三路证据 → 自然语言假设清单（问题描述 + 嫌疑函数 + 置信度），**agent 不知道 bug 清单**，LLM 产出经归一化校验，不合法直接丢弃；清单已检验完后可携带失败实证（已否决假设 + 改法教训 + 失败原因）重诊断一轮
 - **patcher**：只拿嫌疑函数源码生成 SEARCH/REPLACE 补丁；无嫌疑函数时注入全函数源码防碎片补丁
-- **tester**：补丁应用到注入版游戏 → 全量受控测试与基线对比归因（未修复 bug 的测试整文件转绿 = 归因修复）→ golden 等价回归 → 通过保留、失败从备份回滚并回传差异摘要；路由控制「重试 ≤3 次 → 换假设 → 结账」
-- **wrapup**：合并 fixes.json（fixed 累积 / rejected 带局号 / remaining / status）+ 写每局评估
+- **tester**：补丁应用到注入版游戏 → 全量受控测试与基线对比归因（未修复 bug 的测试整文件转绿 = 归因修复）→ golden 等价回归 → 通过保留、失败从备份回滚并回传差异摘要；预算制路由——单假设补丁预算（3 次）+ 单局总预算（20 次），同一失败原因重复 3 次即提前放弃当前假设，假设清单已检验完后携带失败实证重诊断一轮
+- **wrapup**：合并 fixes.json（fixed 累积 / rejected 带局号与改法教训 / remaining / status）+ 尝试历史落盘（patch_history.jsonl 审计账本 + runs/round_N/patches.md 可读版）+ 写每局评估
 
 > 泄漏防御贯穿始终：现象目录（catalog）只含代码遗留备注式弱线索，且已不进任何 LLM prompt——diagnostician 只见三路证据归纳出的自然语言；PH-xx 编号与 truth_map 仅存在于框架内部（tester 归因 / 收敛判定 / 评分），绝不出现在假设、补丁与修复总结中。
 

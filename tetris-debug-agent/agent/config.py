@@ -55,6 +55,11 @@ TEXT_BASE_URL = os.environ.get("TEXT_BASE_URL", "https://openrouter.ai/api/v1")
 TEXT_API_KEY_ENV = os.environ.get("TEXT_API_KEY_ENV", "DEEPSEEK_API_KEY")
 
 # ---- pipeline 参数 ----------------------------------------------------------
-MAX_PATCH_ATTEMPTS = 8      # 单假设补丁重试上限
-MAX_HYPOTHESES = 5          # 每局最多推进的假设数
+PATCH_BUDGET_PER_HYPOTHESIS = 3   # 单假设补丁预算：用完即放弃该假设换下一个
+PATCH_BUDGET_TOTAL = 20           # 单局补丁总预算：所有假设共享，用完即收场
+GIVEUP_REPEATS = 3                # 同一失败原因在该假设尝试历史中重复 N 次 → 提前放弃当前假设
+MAX_REDIAG_ROUNDS = 1             # 当前假设清单已检验完后，携带失败实证重诊断的轮数上限
+MAX_HYPOTHESES = 5          # 每批假设清单最多推进的假设数（重诊断新批次同样适用）
+REJECTED_PRIOR_LIMIT = 10         # 跨局记忆 rejected_prior 注入上限（取最近 N 条）
+LESSON_MAX_CHARS = 120            # 失败改法教训单条长度上限
 PYTEST_TIMEOUT = 600        # tester 跑 pytest 超时（秒）

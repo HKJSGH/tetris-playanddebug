@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from agent.config import FIXES_PATH
+from agent.config import FIXES_PATH, REJECTED_PRIOR_LIMIT
 from agent.nodes.common import TokenDelta, load_catalog
 from agent.tools.probes import load_round, run_all_probes
 from agent.tools.srcmap import build_srcmap
@@ -23,10 +23,12 @@ def node_ingest(state: dict) -> dict:
         # fixed_prior_ph 仅供纯代码过滤兜底假设（已修复勿提），同样不进 prompt
         fixed_prior = sorted({str(f.get("hypothesis", "")).strip()
                               for f in fx.get("fixed_phenomena", [])} - {""})
-        # rejected_prior 增强：问题文本 + 失败模式摘要（尝试次数/嫌疑函数/最后失败），
-        # 让诊断重提前"带着教训"——知道该问题试过修不动，考虑换函数或换角度
+        # rejected_prior 增强：问题文本 + 失败模式摘要（尝试次数/嫌疑函数/最后失败）
+        # + 改法教训（lesson，wrapup 侧 LLM 语义总结的失败方向），让诊断重提前
+        # 带着教训——知道该问题试过修不动、往哪个方向修不动，换函数或换角度。
+        # 只取最近 REJECTED_PRIOR_LIMIT 条（防跨局累积撑爆上下文）
         rejected_prior = []
-        for r in fx.get("rejected", []):
+        for r in fx.get("rejected", [])[-REJECTED_PRIOR_LIMIT:]:
             p = str(r.get("problem", "")).strip()
             if not p:
                 continue
@@ -37,7 +39,10 @@ def node_ingest(state: dict) -> dict:
                 s += f"（嫌疑函数 {fn}）"
             if err:
                 s += f"，最后失败: {err[:80]}"
-            rejected_prior.append(s)
+            lesson = str(r.get("lesson", "") or "").strip()
+            if lesson:
+                s += f"；改法教训: {lesson}"
+            rejected_prior.append(s[:200])
         fixed_prior_ph = sorted({str(f.get("phenomenon_id", "")).strip()
                                  for f in fx.get("fixed_phenomena", [])} - {""})
     acc = TokenDelta()
@@ -55,6 +60,9 @@ def node_ingest(state: dict) -> dict:
         **acc.out(),
         "hypotheses": [],
         "hypothesis_cursor": -1,
+        "hypothesis_batch_start": 0,
+        "patch_attempts_total": 0,
+        "rediag_rounds": 0,
         "fixed_phenomena": [],
         "rejected": [],
         "deferred": [],
