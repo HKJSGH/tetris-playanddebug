@@ -63,3 +63,9 @@ MAX_HYPOTHESES = 5          # 每批假设清单最多推进的假设数（重�
 REJECTED_PRIOR_LIMIT = 10         # 跨局记忆 rejected_prior 注入上限（取最近 N 条）
 LESSON_MAX_CHARS = 120            # 失败改法教训单条长度上限
 PYTEST_TIMEOUT = 600        # tester 跑 pytest 超时（秒）
+
+# ---- diagnostician 源码阅读工具（function calling 循环）----
+MAX_TOOL_ROUNDS = 8         # 一次诊断内 LLM 往返上限（工具轮+最终作答；用完强制作答收尾）
+TOOL_READ_BATCH = 3         # read_functions 单次最多读取的函数个数（减少并行调用）
+TOOL_SRC_CHARS = 6000       # read_functions 单次返回源码总量上限（超出截断并提示分批）
+TOOL_EVENT_LIMIT = 60       # query_events 单次返回事件条数上限

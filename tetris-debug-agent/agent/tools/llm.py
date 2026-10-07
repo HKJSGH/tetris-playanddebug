@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from agent.config import (
     TEXT_API_KEY_ENV, TEXT_BASE_URL, TEXT_MODEL,
@@ -46,6 +46,10 @@ class ChatResult:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     cached_tokens: int = 0        # 前缀缓存命中 tokens（评估「命中/总 prompt」用；无则 0）
+    # function calling：模型发起的工具调用列表，每项 {"id","name","arguments"}
+    # （arguments 保持模型返回的原始 JSON 字符串，由调用方解析）；
+    # 空列表 = 模型未调工具、text 即最终回答
+    tool_calls: list[dict] = field(default_factory=list)
 
 
 class MockLLM:
@@ -74,8 +78,15 @@ class OpenAICompatLLM:
             try:
                 resp = self._client.chat.completions.create(model=self.model, messages=messages, **kw)
                 choice = (resp.choices or [None])[0]
-                text = getattr(getattr(choice, "message", None), "content", None)
-                if not text:
+                msg = getattr(choice, "message", None)
+                text = getattr(msg, "content", None)
+                # function calling：模型发起的工具调用（正文为空但带 tool_calls 是合法响应，
+                # 不得当「响应无内容」重试——否则工具循环会被误判上游过载反复退避）
+                tool_calls = [
+                    {"id": tc.id, "name": tc.function.name, "arguments": tc.function.arguments}
+                    for tc in (getattr(msg, "tool_calls", None) or [])
+                ]
+                if not text and not tool_calls:
                     dump = str(resp.model_dump())[:300] if hasattr(resp, "model_dump") else repr(resp)[:300]
                     # OpenRouter 偶发 200 但响应体无 choices/content（上游过载），可重试
                     raise RuntimeError(f"响应无内容: {dump}")
@@ -86,10 +97,11 @@ class OpenAICompatLLM:
                 cached = (getattr(details, "cached_tokens", None)
                           or getattr(usage, "prompt_cache_hit_tokens", None) or 0)
                 return ChatResult(
-                    text=text,
+                    text=text or "",
                     prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
                     completion_tokens=getattr(usage, "completion_tokens", 0) or 0,
                     cached_tokens=cached,
+                    tool_calls=tool_calls,
                 )
             except Exception as e:  # noqa: BLE001
                 last = e

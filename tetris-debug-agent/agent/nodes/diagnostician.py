@@ -2,10 +2,14 @@ r"""diagnostician — LLM 节点：三路证据 → 假设清单（自然语言�
 
 agent 不知道现象目录/bug 清单：假设的 problem 完全由探针告警证据、玩家
 症状、视觉发现归纳而来（phenomenon_id 由 tester 的测试归因反推，框架内部
-key）。首次进入生成（或兜底生成）假设清单；再次进入推进到下一个假设；
-当前假设清单已检验完（全部假设处理完或本批上限用完）且本局有被否决的
-实证时，携带「原始证据 + 修复失败的实证」重诊断一轮（轮数上限
-MAX_REDIAG_ROUNDS），产出下一批假设——补上 tester 侧测试证据的回流闭环。
+key）。诊断师配有三个只读查表工具（见 agent/tools/diag_tools.py）：
+read_functions 读候选函数源码、query_probe_detail 查探针明细、query_events
+查原始事件流——函数归因必须基于读过的源码，不得按函数名猜；怀疑探针
+误报时用原始事件流核查。首次进入生成（或兜底生成）假设清单；再次进入
+推进到下一个假设；当前假设清单已检验完（全部假设处理完或本批上限用完）
+且本局有被否决的实证时，携带「原始证据 + 修复失败的实证」重诊断一轮
+（轮数上限 MAX_REDIAG_ROUNDS），产出下一批假设——补上 tester 侧测试证据
+的回流闭环。
 兜底 hypotheses_from_probes 为纯 Python：探针 signal → 问题假设（evidence
 本身即现象级描述），suspect_function 留空由 patcher 全函数扫描。
 
@@ -17,19 +21,27 @@ from __future__ import annotations
 
 import json
 
-from agent.config import MAX_HYPOTHESES, MAX_REDIAG_ROUNDS
+from agent.config import MAX_HYPOTHESES, MAX_REDIAG_ROUNDS, MAX_TOOL_ROUNDS
 from agent.nodes.common import get_llm_for, ph_to_b, TokenDelta
+from agent.tools.diag_tools import build_diag_tools, function_digest
 from agent.tools.llm import llm_available, parse_json_text
 
 SYSTEM = (
     "你是俄罗斯方块游戏的诊断专家。根据三路证据（遥测探针告警、玩家症状、视觉发现）"
     "归纳游戏存在的具体问题，提出修复假设清单。\n"
+    "你可以调用三个只读工具收集证据后再归因：\n"
+    "- read_functions：读取候选函数的完整源码——给出 suspect_function 前必须读过"
+    "该函数的源码，没读过的函数不得作为嫌疑函数（留空字符串）；\n"
+    "- query_probe_detail：查看某个探针告警的完整统计明细；\n"
+    "- query_events：查询本局原始事件流——怀疑探针告警可能是误报时，用它核查原始事件。\n"
     "约束：\n"
     "1. problem 用一句话描述玩家可感知的具体问题（从证据归纳，不要臆造证据之外的想象）；\n"
-    "2. suspect_function 必须取自候选函数列表（若证据不足以定位函数可留空字符串）；\n"
+    "2. suspect_function 必须取自候选函数列表，且只填你用工具读过源码的函数"
+    "（若证据不足以定位函数可留空字符串）；\n"
     "3. 每个问题只提一个假设，按置信度降序；\n"
-    '4. 输出 JSON 数组：[{"problem": "问题描述", "suspect_function": "函数名",'
-    ' "confidence": 0-1, "rationale": "理由", "evidence": ["证据要点"]}]\n'
+    '4. 证据收集完成后，输出最终 JSON 数组：[{"problem": "问题描述",'
+    ' "suspect_function": "函数名", "confidence": 0-1, "rationale": "理由",'
+    ' "evidence": ["证据要点"]}]，不要输出多余解释；\n'
     "5. already_fixed 中的问题已修复，勿再提出；previously_rejected 是此前局尝试"
     "修复未通过验证的问题（附改法教训，即此前失败的方向），除非本局有新的明确证据，"
     "否则不要重复提出相同问题或相同改法方向。\n"
@@ -99,26 +111,44 @@ def _norm_fn(raw: str, names: set[str]) -> str:
     return fn
 
 
-def _user_payload(state: dict, extra: dict | None = None) -> dict:
+def _user_payload(state: dict, extra: dict | None = None,
+                  probe_labels: dict | None = None) -> dict:
     """诊断输入（键序即缓存前缀：跨局稳定段在前、逐局变化段居后、附加段最后）。
 
-    candidate_functions 是最大且跨局不变的前缀段；already_fixed /
-    previously_rejected 跨局缓增；三路证据逐局变化；extra（重诊断实证）
-    最易变，永远垫底——保证重诊断多次调用时前缀尽量逐字稳定。
+    candidate_functions 是最大且跨局不变的前缀段——形态为「签名摘要表」
+    （函数名 — def 签名 — docstring 首行，见 diag_tools.function_digest），
+    让诊断师有依据地挑选 read_functions 的阅读目标，而不是只按名字猜；
+    already_fixed / previously_rejected 跨局缓增；三路证据逐局变化；
+    extra（重诊断实证）最易变，永远垫底——保证重诊断多次调用时前缀尽量
+    逐字稳定。
+
+    probe_signals 只含 signal 探针（probe_labels 为 diag_tools 分配的每局
+    临时标签 P1/P2/...；内部键绝不出现）。列全量探针索引会让 LLM 数出探针
+    总数、暗示 bug 数量，属泄漏，禁止。
     """
     report = state["probe_report"]
     srcmap = state.get("srcmap") or {}
-    signal_evidence = [
-        str(e) for v in report.get("probes", {}).values() if v["status"] == "signal"
-        for e in v.get("evidence", [])
-    ]
+    if probe_labels is None:
+        # 无标签时的旧形态：纯证据文本（仅兜底用，正常路径都带标签）
+        signal_evidence = [
+            str(e) for v in report.get("probes", {}).values() if v["status"] == "signal"
+            for e in v.get("evidence", [])
+        ]
+        probe_signals = signal_evidence or "（无）"
+    else:
+        probe_signals = [
+            {"label": probe_labels[key],
+             "evidence": [str(x) for x in v.get("evidence", [])]}
+            for key, v in sorted((report.get("probes") or {}).items())
+            if v.get("status") == "signal" and key in probe_labels
+        ] or "（无）"
     symptoms = [s for s in (state.get("feedback_symptoms") or [])
                 if s.get("kind") != "suggestion"]
     user = {
-        "candidate_functions": sorted(srcmap.keys()),
+        "candidate_functions": function_digest(srcmap),
         "already_fixed": list(state.get("fixed_prior") or []) or "（无）",
         "previously_rejected": list(state.get("rejected_prior") or []) or "（无）",
-        "probe_signals": signal_evidence or "（无）",
+        "probe_signals": probe_signals,
         "vision_findings": (list(state.get("vision_findings") or [])
                             or "（无截图或未启用视觉）"),
         "player_symptoms": symptoms or "（无）",
@@ -126,6 +156,51 @@ def _user_payload(state: dict, extra: dict | None = None) -> dict:
     if extra:
         user.update(extra)
     return user
+
+
+def _diagnose_with_source(state: dict, payload: dict, acc: TokenDelta,
+                          tools_schema: list[dict], execute) -> object:
+    """带源码阅读工具的诊断循环（function calling），返回解析后的最终 JSON。
+
+    流程：messages = [system, user(payload)]；循环 ≤ MAX_TOOL_ROUNDS 轮——
+    模型发起工具调用则逐个执行并以 tool 消息回填继续；模型不再调工具则
+    把该轮 text 作为最终答案解析返回。轮数用完模型仍在调工具时，追加
+    「额度已用完」的 user 消息并去掉 tools 强制作答一次。
+
+    失败语义：llm.chat 的一切失败（LLMError）不捕获 → 冒泡中止整局；
+    parse_json_text 的解析失败（JSONDecodeError）也不在这里捕获，由调用方
+    按现有语义处理（首次诊断→纯代码兜底假设；重诊断→记 error 收场）。
+    每轮调用都 acc.usage 记账，token 分账按轮累计。
+    """
+    llm = get_llm_for(state.get("mode", "mock"), "text")
+    messages = [
+        {"role": "system", "content": SYSTEM},
+        {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+    ]
+    for _ in range(MAX_TOOL_ROUNDS):
+        result = llm.chat(messages, tools=tools_schema, temperature=0.2)
+        acc.usage("diagnostician", result)
+        if not result.tool_calls:
+            return parse_json_text(result.text)
+        # assistant 消息须原样回填 tool_calls（OpenAI 协议要求 id/name/arguments）
+        messages.append({
+            "role": "assistant",
+            "content": result.text or None,
+            "tool_calls": [
+                {"id": tc["id"], "type": "function",
+                 "function": {"name": tc["name"], "arguments": tc["arguments"]}}
+                for tc in result.tool_calls
+            ],
+        })
+        for tc in result.tool_calls:
+            out = execute(tc["name"], tc["arguments"])
+            messages.append({"role": "tool", "tool_call_id": tc["id"], "content": out})
+    # 工具轮数用完：强制作答收尾（不带 tools，模型无法再发起调用）
+    messages.append({"role": "user",
+                     "content": "工具调用额度已用完，请基于已获得的信息输出最终假设清单 JSON 数组。"})
+    final = llm.chat(messages, temperature=0.2)
+    acc.usage("diagnostician", final)
+    return parse_json_text(final.text)
 
 
 def _validated_hyps(data, srcmap: dict, report: dict, fixed_prior: list[str],
@@ -208,16 +283,11 @@ def _rediagnose_or_finish(state: dict, cursor_pos: int, acc: TokenDelta) -> dict
             "若证据不足以提出新假设，输出空数组 []。"
         ),
     }
-    llm = get_llm_for(mode, "text")
-    result = llm.chat(
-        [{"role": "system", "content": SYSTEM},
-         {"role": "user", "content": json.dumps(_user_payload(state, extra), ensure_ascii=False)}],
-        temperature=0.2,
-    )
-    acc.usage("diagnostician", result)
+    tools_schema, execute, probe_labels = build_diag_tools(state)
     try:
-        data = parse_json_text(result.text)
-    except Exception as e:  # noqa: BLE001 — 解析失败=输出质量问题
+        data = _diagnose_with_source(
+            state, _user_payload(state, extra, probe_labels), acc, tools_schema, execute)
+    except json.JSONDecodeError as e:  # noqa: BLE001 — 解析失败=输出质量问题
         acc.error(f"diagnostician: 重诊断解析失败 {e!r}")
         data = []
 
@@ -278,17 +348,12 @@ def node_diagnostician(state: dict) -> dict:
         return {**acc.out(), "hypotheses": hyps, "hypothesis_cursor": 0 if first else -1,
                 "current_hypothesis": first, "patch_attempts": 0}
 
-    # llm.chat 不捕获：live 下 LLMError 冒泡中止整局（fail-fast，不静默兜底）
-    llm = get_llm_for(mode, "text")
-    result = llm.chat(
-        [{"role": "system", "content": SYSTEM},
-         {"role": "user", "content": json.dumps(_user_payload(state), ensure_ascii=False)}],
-        temperature=0.2,
-    )
-    acc.usage("diagnostician", result)
+    # llm.chat 失败不捕获：live 下 LLMError 冒泡中止整局（fail-fast，不静默兜底）
+    tools_schema, execute, probe_labels = build_diag_tools(state)
     try:
-        data = parse_json_text(result.text)
-    except Exception as e:  # noqa: BLE001 — 解析失败=输出质量问题，走纯代码兜底
+        data = _diagnose_with_source(
+            state, _user_payload(state, probe_labels=probe_labels), acc, tools_schema, execute)
+    except json.JSONDecodeError as e:  # noqa: BLE001 — 解析失败=输出质量问题，走纯代码兜底
         acc.error(f"diagnostician: 解析失败 {e!r}")
         data = []
 
