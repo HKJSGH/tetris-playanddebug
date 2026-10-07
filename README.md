@@ -37,68 +37,31 @@ flowchart LR
 
 - **ingest**：加载对局数据，运行 12 个纯代码探针（三态：signal / no_signal / no_evidence），读入 fixes.json 跨局记忆
 - **vision / feedback**：截图 + 文字反馈/报错 → 结构化发现，与探针证据三路互补
-- **diagnostician**：三路证据 → 自然语言假设清单（问题描述 + 嫌疑函数 + 置信度），**agent 不知道 bug 清单**，LLM 产出经归一化校验，不合法直接丢弃；配三个只读工具（function calling：读候选函数源码 / 查探针告警明细 / 查原始事件流），嫌疑函数必须读过源码才能填、探针告警可用原始事件亲手核查防误报；清单已检验完后可携带失败实证（已否决假设 + 改法教训 + 失败原因）重诊断一轮
+- **diagnostician**：三路证据 → 自然语言假设清单（问题描述 + 嫌疑函数 + 置信度），**agent 不知道 bug 清单**，LLM 产出经归一化校验，不合法直接丢弃；配有只读源码工具（读嫌疑函数源码 / 查探针统计明细 / 查原始事件流），函数归因基于读过的源码而非函数名猜测，怀疑探针误报时可查原始事件流核查；清单已检验完后可携带失败实证（已否决假设 + 改法教训 + 失败原因）重诊断一轮
 - **patcher**：只拿嫌疑函数源码生成 SEARCH/REPLACE 补丁；无嫌疑函数时注入全函数源码防碎片补丁
 - **tester**：补丁应用到注入版游戏 → 全量受控测试与基线对比归因（未修复 bug 的测试整文件转绿 = 归因修复）→ golden 等价回归 → 通过保留、失败从备份回滚并回传差异摘要；预算制路由——单假设补丁预算（3 次）+ 单局总预算（20 次），同一失败原因重复 3 次即提前放弃当前假设，假设清单已检验完后携带失败实证重诊断一轮
 - **wrapup**：合并 fixes.json（fixed 累积 / rejected 带局号与改法教训 / remaining / status）+ 尝试历史落盘（patch_history.jsonl 审计账本 + runs/round_N/patches.md 可读版）+ 写每局评估
 
 > 泄漏防御贯穿始终：现象目录（catalog）只含代码遗留备注式弱线索，且已不进任何 LLM prompt——diagnostician 只见三路证据归纳出的自然语言；PH-xx 编号与 truth_map 仅存在于框架内部（tester 归因 / 收敛判定 / 评分），绝不出现在假设、补丁与修复总结中。
 
-## 界面与演示
+## 12 个真实 Bug 清单
 
-<!-- 截图占位：建议截图后上传到 GitHub issue/comment 拿到 user-attachments URL，替换下方 src -->
+全部为真实编码错误形态（调试遗留 / 变量写错 / 逻辑缺失），有对应红→绿测试，玩家可亲自试玩验证：
 
-**游戏界面**（注入版游戏，异常现象玩家可亲自试玩验证）：
-
-```markdown
-![游戏界面](docs/screenshots/game.png)
-```
-
-**游戏内反馈界面**（游玩中点「反馈」按钮提交文字描述与异常截图）：
-
-```markdown
-![反馈界面](docs/screenshots/feedback.png)
-```
-
-**Agent 执行输出**（黑板流逐节点打印 + 修复总结）：
-
-```markdown
-![执行输出](docs/screenshots/pipeline.png)
-```
-
-## 目录结构
-
-```
-tetris-playanddebug/
-├── tetris-game/            # 出题方侧：出题与评分（pipeline 永不可读）
-│   ├── bugs.yaml           #   12 个 bug 的注入记录（代码级）
-│   ├── tetris_v0.py        #   干净基线版
-│   └── scripts/
-│       ├── gen_catalog.py  #   bugs.yaml → 现象目录 + truth_map（含泄漏自检）
-│       ├── record_gold.py  #   干净版 12 场景 headless 录制 → golden 快照
-│       └── score_eval.py   #   离线评分：join truth_map → 收敛曲线
-└── tetris-debug-agent/     # Agent 沙盒（pipeline 只能读写这里，路径 jail 强制）
-    ├── game/               #   注入版游戏 + 行为埋点记录器
-    ├── agent/              #   LangGraph 流水线（graph/state/nodes/tools）
-    ├── tests/              #   受控测试集 test_B01-B12 + golden 等价回归
-    ├── data/               #   catalog / fixes.json / 对局数据 runs/
-    ├── eval/               #   每局评估 round_N.json + campaign.json
-    ├── logs/               #   黑板流日志（每局一份）
-    └── scripts/            #   play.py 玩家入口 / run_pipeline.py 流水线入口
-```
-
-## 关键设计
-
-| 设计 | 解决什么问题 |
+| 编号 | 现象 |
 |---|---|
-| **真实 bug，非模拟** | 12 个都是真实编码错误（如移动方向取反、暂停后恢复失效），用户试玩可验证，有对应红→绿测试 |
-| **目录物理隔离** | 出题方与 Agent 沙盒分离 + 路径 jail；truth_map/注入记录绝不进任何 prompt，杜绝「看答案」 |
-| **受控测试集** | Agent 自写测试不作为通过依据；每补丁跑全量测试，未修复 bug 的测试**整文件转绿**才归因修复，已修复测试变红即回滚 |
-| **golden 等价回归** | 用干净版录制 12 个单机制场景回放比对，防止「修 A 坏 B」；manifest 门控避免未收敛期永远红 |
-| **补丁可回滚** | SEARCH 串必须恰好命中一次才应用（fail-fast），应用前备份，失败自动还原 |
-| **跨局记忆** | fixes.json 累积修复/否决（带局号）；diagnostician 拿到「已修复勿提/已否决谨慎重提」，同一现象跨局可凭新证据重试 |
-| **全链路可降级** | 无 API key 时走 MockLLM + 纯代码兜底假设，图完整可跑；OpenRouter 429/空响应自动退避重试 |
-| **评估可量化** | 每局 tokens/图步/时长/假设命中率落盘；黑板流全程写日志；离线评分输出 ASCII 收敛曲线 |
+| B01 | O 块下落速度异常，约为其他形状的 5 倍 |
+| B02 | 旋转不检查碰撞，可旋转进已落定的方块或边界里 |
+| B03 | 消除满行后分数不增加 |
+| B04 | 方块堆满顶部、新块无处生成时游戏不结束，新块直接叠在已有方块上 |
+| B05 | 按右方向键方块向左移动（与左键行为相同） |
+| B06 | 游戏区 I 块显示为红色，与预览区的青色 I 块不一致 |
+| B07 | 预览显示的总是当前下落的方块（滞后一拍），失去预告作用 |
+| B08 | 两行以上同时填满时只消掉一行，其余满行残留 |
+| B09 | 按 Esc 暂停后无法再恢复，暂停面板关不掉 |
+| B10 | 按 ↓ 硬降时方块原地不动，无法快速落底 |
+| B11 | 预览区多个方块轮廓叠加残影，越玩越花 |
+| B12 | 一局结束再开新局，窗口位置回到左上角不保持 |
 
 ## 快速开始
 
@@ -110,60 +73,25 @@ cd tetris-debug-agent
 cp .env.example .env.local        # 填入 OpenRouter API key（该文件已被 gitignore）
 ```
 
-**1. 玩家游玩**（自动采集埋点/报错；异常可点游戏内「反馈」按钮提交文字与截图）：
+**玩家游玩**（自动采集埋点/报错；异常可点游戏内「反馈」按钮提交文字与截图；关闭游戏窗口后自动启动 debug 并打印修复总结）：
 
 ```bash
-python scripts/play.py   # 局号自动递增；关闭游戏窗口后自动启动 debug 并打印修复总结
+python scripts/play.py   # 局号自动递增
 ```
 
-**2. 运行 Agent**（play.py 已自动串联上述流程；也可手动运行，已有评估的局自动跳过、可续跑）：
-
-```bash
-python scripts/run_pipeline.py --campaign --mode llm --verbose
-python scripts/run_pipeline.py --round 5 --mode llm   # 也可单局运行
-```
-
-<!-- 截图占位：执行输出粘贴处 -->
-
-debug 结束打印玩家视角修复总结（不带内部编号）：本次确认修复 / 此前已修复 / 尝试未通过三组；未修完的差距由出题方侧评估报告呈现。
-
-**3. 查看评估**（每局汇总 + ASCII 收敛曲线 + token 成本账）：
+**查看评估**（每局汇总 + ASCII 收敛曲线 + token 成本账；或生成自包含 HTML 报告）：
 
 ```bash
 python ../tetris-game/scripts/score_eval.py --out data/eval_report.md
+python ../tetris-game/scripts/gen_html_report.py    # → eval_reports/report.html
 ```
 
-或生成可视化 HTML 报告（KPI 卡片 / 收敛曲线 / 修复时间线 / 12-bug 清单 / 成本构成，
-自包含单文件，离线可开）：
-
-```bash
-python ../tetris-game/scripts/gen_html_report.py            # 当前实验 → eval_reports/report.html
-python ../tetris-game/scripts/gen_html_report.py --archive archives/<归档名>   # 归档实验
-```
-
-无 API key 时加 `--mode mock` 可零成本验证全图流转。
-
-**终止实验**（未收敛中途结束也可用）——归档本次全部运行数据并把游戏回退到
-原始 12-bug 版，作为 agent 迭代平行对比的干净起点：
+**终止实验**（未收敛中途结束也可用）——归档本次全部运行数据并把游戏回退到原始 12-bug 版，作为 agent 迭代平行对比的干净起点：
 
 ```bash
 python scripts/archive_reset.py            # 默认归档当前实验
 python scripts/archive_reset.py --tag 实验名 --yes   # 指定标签并免确认
 ```
-
-## 实测样例（OpenRouter 真实运行）
-
-> 下表为早期架构（证据 × 现象目录版本）的实测。当前架构（agent 不知 bug 清单、
-> tester 全量归因制）的真实游玩实验已推进 7 局，agent 自主确认修复 **7 项**：
-> O 块下落间隔异常、预览区叠画残影、预览刷新顺序、右移方向取反、旋转碰撞检查
-> 未检查新姿态、硬降不落地、暂停后无法恢复（含 1 项由探针告警路径发现）；
-> clean 对照局零误报，多次错误假设被 tester 正确否决并留痕。
-
-| 局 | 数据类型 | 假设 | 结果 | tokens(入/出) | 图步 |
-|---|---|---|---:|---|---:|
-| 1 | 381 事件 + 反馈 | 5 条全过校验 | **PH-05 一次修复**（测试 3 passed）；PH-01/02 三次尝试正确否决 | 17.6k/2.5k | 23 |
-| 2 | clean 对照局 | 0 条 | **零误报**，不重提已修复/已否决现象 | 9.1k/0.1k | 6 |
-| 3 | 暂停异常局 | 1 条（PH-09, conf 0.9） | 3 次补丁未过测试 → 正确否决并记录 | 12.7k/0.8k | 13 |
 
 ## 游戏结束后DeBug示例
 - <img width="1900" height="674" alt="image" src="https://github.com/user-attachments/assets/a5608bec-ca62-4f5b-ad20-70cff561a31b" />
@@ -172,5 +100,3 @@ python scripts/archive_reset.py --tag 实验名 --yes   # 指定标签并免确�
 
 - 视觉：`qwen/qwen3-vl-235b-a22b-instruct`（OpenRouter）
 - 文本：`deepseek/deepseek-chat`（OpenRouter）
-
-
