@@ -68,7 +68,7 @@ flowchart LR
 pip install pyyaml pytest langgraph openai httpx pillow
 
 cd tetris-debug-agent
-cp .env.example .env.local        # 填入 OpenRouter API key（该文件已被 gitignore）
+cp .env.example .env.local        # 填入 OpenRouter API key
 ```
 
 **玩家游玩**（自动采集埋点/报错；异常可点游戏内「反馈」按钮提交文字与截图；关闭游戏窗口后自动启动 debug 并打印修复总结）：
@@ -77,14 +77,14 @@ cp .env.example .env.local        # 填入 OpenRouter API key（该文件已被 
 python scripts/play.py   # 局号自动递增
 ```
 
-**查看评估**（每局汇总 + ASCII 收敛曲线 + token 成本账；或生成自包含 HTML 报告）：
+**查看评估**（每局汇总 + ASCII 收敛曲线 + token 成本）：
 
 ```bash
 python ../tetris-game/scripts/score_eval.py --out data/eval_report.md
 python ../tetris-game/scripts/gen_html_report.py    # → eval_reports/report.html
 ```
 
-**终止实验**（未收敛中途结束也可用）——归档本次全部运行数据并把游戏回退到原始 12-bug 版，作为 agent 迭代平行对比的干净起点：
+**终止实验**（未收敛中途结束也可用）——归档本次全部运行数据并把游戏回退到原始版本，作为 agent 迭代平行对比的干净起点：
 
 ```bash
 python scripts/archive_reset.py            # 默认归档当前实验
