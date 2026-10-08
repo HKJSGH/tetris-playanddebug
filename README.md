@@ -2,15 +2,9 @@
 
 > **基于多模态证据的 Debug Agent 设计** —— 伴随玩家每轮的游玩过程，Agent收集行为埋点/玩家反馈/玩家截图数据，识别并自主优化游戏的真实问题。
 
-## 核心闭环
+## 执行流程
 
-```
-玩家游玩 ──▶ 多模态证据采集 ──▶ Agent 诊断修复 ──▶ 测试验证 ──▶ 跨局记忆
-   ▲            │ telemetry.jsonl      │ 假设清单          │ 通过=保留     │ fixes.json
-   │            │ errors.log           │ 补丁生成          │ 失败=回滚     │ 累计修复
-   └────────────┼ feedback_text.md     └───────────────────┴─────────────┴─▶ 20 局收敛 12/12
-                └ screenshot_*.png
-```
+![执行流程](docs/执行流程.png)
 
 ## Agent 流水线架构
 
@@ -89,10 +83,7 @@ python scripts/archive_reset.py            # 默认归档当前实验
 python scripts/archive_reset.py --tag 实验名 --yes   # 指定标签并免确认
 ```
 
-## 游戏结束后DeBug示例
-- <img width="1900" height="674" alt="image" src="https://github.com/user-attachments/assets/a5608bec-ca62-4f5b-ad20-70cff561a31b" />
-
 ## 模型
 
-- 视觉：`qwen/qwen3-vl-235b-a22b-instruct`（OpenRouter）
-- 文本：`deepseek/deepseek-chat`（OpenRouter）
+- 视觉：`qwen/qwen3.8-27b`（OpenRouter）
+- 文本：`deepseek/deepseek-v4.1-flash`（OpenRouter）
