@@ -257,6 +257,7 @@ class TetrisGame:
                     self.block_list[ri] = ["" for _ in range(C)]
                 break
         if cleared:
+            self.score += 10 * cleared
             self.lines_cleared_total += cleared
             self.rec.record({"event": "line_clear", "count": cleared, "score": self.score})
             self._draw_board()
