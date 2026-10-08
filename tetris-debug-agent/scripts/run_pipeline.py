@@ -29,6 +29,7 @@ from agent.config import (  # noqa: E402
 )
 from agent.graph import build_graph  # noqa: E402
 from agent.state import merge_tokens  # noqa: E402
+from agent.tools.llm import LLMError  # noqa: E402
 
 EVAL_DIR = SANDBOX_ROOT / "eval"
 LOGS_DIR = SANDBOX_ROOT / "logs"

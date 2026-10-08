@@ -201,6 +201,15 @@ def _repeated_failure(problem: str, attempt_log: list[dict], current_error: str)
     纯文本逐字比对，零 LLM 成本。次数 ≥ GIVEUP_REPEATS 说明 patcher
     在同一思路上反复产出等价补丁（原地打转），应当提前放弃当前假设。
     """
+    if not problem or not current_error:
+        return 0
+    n = 1     # 含本次（当前条目尚未经 reducer 并入黑板 attempt_log）
+    for a in attempt_log:
+        if (str(a.get("problem", "")).strip() == problem
+                and not a.get("ok")
+                and str(a.get("error", "")) == current_error):
+            n += 1
+    return n
 
 
 def node_tester(state: dict) -> dict:
