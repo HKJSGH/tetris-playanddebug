@@ -3,6 +3,8 @@
 不填 --round 时自动取已有最大局号 +1，避免覆盖旧局数据。
 游戏窗口关闭后自动启动 debug（run_pipeline --campaign，含自动 git 快照），
 阻塞至 debug 完成进程才退出——即下一轮游戏只能在修复结束后开始。
+debug 因 LLM 不可用（网络故障）中止时，等待 3 分钟自动续跑（最多重试
+2 次），重试安全：已完成局已落盘，campaign 从断的那局继续。
 
 debug 结束后的两种走向：
   1. 全部 bug 修复完成（fixes.json status=converged）→ 询问「是否归档本次
@@ -21,6 +23,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -94,11 +97,29 @@ def main() -> None:
         sys.executable, str(ROOT / "scripts" / "run_pipeline.py"),
         "--campaign", "--mode", args.mode, "--commit", "--verbose",
     ]
-    try:
-        rc = subprocess.run(cmd, cwd=ROOT).returncode
-    except KeyboardInterrupt:
-        print("\ndebug 被中断；游玩数据已落盘，可稍后手动运行 scripts/run_pipeline.py 续跑")
-        raise SystemExit(130) from None
+    # debug 中止自动续跑：run_pipeline 退出码 1 = LLMError（网络故障/限流耗尽）
+    # 中止，已完成局已落盘有效，campaign 续跑语义会从断的那局重新开始——
+    # 等一会儿重试通常就能过。重试 _DEBUG_MAX_ATTEMPTS 次仍失败才交还给人。
+    _DEBUG_RETRY_WAIT = 180      # 失败后等待秒数（给网络/限流恢复留时间）
+    _DEBUG_MAX_ATTEMPTS = 3      # 含首次共 3 次机会
+    attempts = 0
+    while True:
+        try:
+            rc = subprocess.run(cmd, cwd=ROOT).returncode
+        except KeyboardInterrupt:
+            print("\ndebug 被中断；游玩数据已落盘，可稍后手动运行 scripts/run_pipeline.py 续跑")
+            raise SystemExit(130) from None
+        if rc == 0 or rc != 1 or attempts >= _DEBUG_MAX_ATTEMPTS - 1:
+            break   # 成功 / 非网络类失败（参数错等）/ 重试用尽 → 不再重试
+        attempts += 1
+        print(f"debug 因 LLM 不可用中止（第 {attempts}/{_DEBUG_MAX_ATTEMPTS - 1} 次重试），"
+              f"已完成局已落盘有效；{_DEBUG_RETRY_WAIT // 60} 分钟后自动续跑"
+              f"（Ctrl+C 取消）...")
+        try:
+            time.sleep(_DEBUG_RETRY_WAIT)
+        except KeyboardInterrupt:
+            print("\n已取消自动续跑；游玩数据已落盘，可稍后手动运行 scripts/run_pipeline.py 续跑")
+            raise SystemExit(130) from None
     _post_debug_prompt()
     raise SystemExit(rc)
 

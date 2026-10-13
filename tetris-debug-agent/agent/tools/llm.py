@@ -132,7 +132,10 @@ class MockLLM:
 
 
 class OpenAICompatLLM:
-    _RETRY_WAIT = (3, 8, 15)    # OpenRouter 上游 429/过载常见，指数退避重试
+    # 退避等待（秒）：拉长到 10/30/90——实测 round_16 曾出现连续 3 次 180s 超时后
+    # 第 4 次成功的情况，短退避窗口（3/8/15，总等待 26s）扛不住分钟级网络抖动；
+    # 配合 180s 单请求超时，可吸收约 10 分钟级别的网络故障
+    _RETRY_WAIT = (10, 30, 90)
     _TIMEOUT_SEC = 180          # 单次请求超时（挂死的请求快速失败进退避重试，
                                 # 而不是让整个流程干等 SDK 默认的 600 秒）
 
@@ -146,7 +149,7 @@ class OpenAICompatLLM:
                               timeout=self._TIMEOUT_SEC, max_retries=0)
 
     def chat(self, messages: list[dict], tag: str = "", **kw) -> ChatResult:
-        """瞬时错误退避重试（3/8/15s，共 4 次尝试）；任何终态失败 raise LLMError。
+        """瞬时错误退避重试（10/30/90s，共 4 次尝试）；任何终态失败 raise LLMError。
 
         tag = 调用方节点标识（如 "diagnostician"），只用于 trace 落盘归类，
         不透传给 SDK。成功与最终失败（LLMError 抛出前）都写一条 trace 记录。
