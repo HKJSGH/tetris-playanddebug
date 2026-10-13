@@ -2,9 +2,11 @@ r"""run_pipeline — 单局 / campaign 入口。
 
 单局：python scripts/run_pipeline.py --round 1 [--mode mock|llm] [--verbose]
       [--max-patch-attempts 3] [--max-hypotheses 5]
-战役：python scripts/run_pipeline.py --campaign [--rounds 20] [--replay] [--verbose]
+战役：python scripts/run_pipeline.py --campaign [--rounds 20] [--from-round N] [--replay] [--verbose]
       按 fixes.json 逐局推进（round_id 递增），至 converged 或局数上限；
-      已有 eval/round_N.json 的局视为完成，跳过（--replay 强制重跑）。
+      已有 eval/round_N.json 的局视为完成，跳过（--replay 强制重跑）；
+      --from-round N 从第 N 局起扫（跳过更早的积压局；N 大于 --rounds 时
+      上限自动扩展为 N）。
 
 --verbose：控制台逐节点打印黑板变化。无论是否 --verbose，每局的完整黑板流
 （节点写入的 state 键 + 产物摘要）与本局摘要都落盘到 logs/round_N_<mode>_<时间>.log。
@@ -342,6 +344,8 @@ def main() -> int:
                         help="每批假设清单最多推进的假设数（缺省读 agent/config.py）")
     parser.add_argument("--campaign", action="store_true")
     parser.add_argument("--rounds", type=int, default=20)
+    parser.add_argument("--from-round", type=int, default=1, dest="from_round",
+                        help="campaign 从第 N 局开始扫（跳过更早的积压局；N 大于 --rounds 时上限自动扩展为 N）")
     parser.add_argument("--replay", action="store_true", help="忽略已存在的 eval 记录，强制重跑")
     parser.add_argument("--commit", action="store_true",
                         help="每局产生新修复后，自动 git commit game/tetris_buggy.py 作为修复快照")
@@ -374,7 +378,7 @@ def main() -> int:
     session_rounds: list[int] = []
     session_suggestions: list[str] = []
     before_all = {f["phenomenon_id"] for f in _read_fixed()}
-    for rid in range(1, args.rounds + 1):
+    for rid in range(args.from_round, max(args.rounds, args.from_round) + 1):
         run_dir = RUNS_ROOT / f"round_{rid}"
         if not run_dir.exists():
             print(f"round_{rid} 无数据，campaign 停止")

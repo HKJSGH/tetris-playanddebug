@@ -2,6 +2,7 @@
 
 不填 --round 时自动取已有最大局号 +1，避免覆盖旧局数据。
 游戏窗口关闭后自动启动 debug（run_pipeline --campaign，含自动 git 快照），
+默认只 debug 本局（玩一局修一局；--debug-from N 可改为从指定局起扫），
 阻塞至 debug 完成进程才退出——即下一轮游戏只能在修复结束后开始。
 debug 因 LLM 不可用（网络故障）中止时，等待 3 分钟自动续跑（最多重试
 2 次），重试安全：已完成局已落盘，campaign 从断的那局继续。
@@ -84,6 +85,9 @@ def main() -> None:
                     help="游戏结束后自动 debug 的模式（默认 llm）")
     ap.add_argument("--no-debug", action="store_true",
                     help="关闭游戏后不自动启动 debug（之后可手动跑 run_pipeline）")
+    ap.add_argument("--debug-from", type=int, default=None,
+                    help="自动 debug 的起始局号；缺省=只 debug 本局（积压的更早局"
+                         "留待手动跑全量 campaign 清理：python scripts/run_pipeline.py --campaign）")
     args = ap.parse_args()
     rid = args.round if args.round is not None else next_round()
     print(f"对局数据将写入 data/runs/round_{rid}/（seed={args.seed}）")
@@ -96,6 +100,8 @@ def main() -> None:
     cmd = [
         sys.executable, str(ROOT / "scripts" / "run_pipeline.py"),
         "--campaign", "--mode", args.mode, "--commit", "--verbose",
+        # 缺省只 debug 本局（玩一局修一局）；--debug-from N 从指定局起扫
+        "--from-round", str(args.debug_from if args.debug_from is not None else rid),
     ]
     # debug 中止自动续跑：run_pipeline 退出码 1 = LLMError（网络故障/限流耗尽）
     # 中止，已完成局已落盘有效，campaign 续跑语义会从断的那局重新开始——
