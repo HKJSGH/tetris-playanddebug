@@ -136,9 +136,14 @@ class TelemetryRecorder:
         return dest
 
     def save_screenshot(self) -> Path | None:
-        """调用截图函数保存 screenshot.png；未提供函数则记错误。"""
+        """调用截图函数保存 screenshot.png。
+
+        未提供截图函数（调用方未接线终局自动截图）时静默跳过：这属于
+        「功能未配置」而非运行期错误，不记 errors.log——该文件会作为证据
+        喂给 feedback 节点，长期躺着一条假警报会误导模型与读者；只有
+        提供了截图函数但执行失败（真故障）才记错误。
+        """
         if self._screenshot_fn is None:
-            self.record_error("screenshot skipped: no capture function provided")
             return None
         path = self.run_dir / "screenshot.png"
         try:
