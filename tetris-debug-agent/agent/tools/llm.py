@@ -93,12 +93,18 @@ class LLMError(RuntimeError):
 
 
 def _is_retriable(e: Exception) -> bool:
-    """瞬时性错误值得退避重试：限流/上游过载/连接抖动/超时。"""
+    """瞬时性错误值得退避重试：限流/上游过载/连接抖动/超时/响应截断。
+
+    JSONDecodeError 只可能来自 SDK 解析「200 但响应体被截断/不完整」的 HTTP
+    响应（传输层故障）——模型输出的 JSON 是否合法由节点层的 parse_json_text
+    负责，不经过本函数，所以这里重试安全不会掩盖输出质量问题。
+    """
     name = type(e).__name__
     s = str(e)
     return (
-        "429" in s or "RateLimit" in name or "响应无内容" in s
-        or "Connection" in name or "Timeout" in name
+        isinstance(e, json.JSONDecodeError)
+        or "429" in s or "RateLimit" in name or "响应无内容" in s
+        or "Connection" in name or "Timeout" in name or "RemoteProtocolError" in name
         or "connection" in s.lower() or "timed out" in s.lower()
     )
 
@@ -127,12 +133,17 @@ class MockLLM:
 
 class OpenAICompatLLM:
     _RETRY_WAIT = (3, 8, 15)    # OpenRouter 上游 429/过载常见，指数退避重试
+    _TIMEOUT_SEC = 180          # 单次请求超时（挂死的请求快速失败进退避重试，
+                                # 而不是让整个流程干等 SDK 默认的 600 秒）
 
     def __init__(self, model: str, base_url: str, api_key: str):
         from openai import OpenAI
 
         self.model = model
-        self._client = OpenAI(base_url=base_url, api_key=api_key)
+        # max_retries=0：重试统一由本类的退避循环管理（SDK 内部默认再重试 2 次
+        # 会让一次「重试」实际最多发 3 个请求，总时长不可控）
+        self._client = OpenAI(base_url=base_url, api_key=api_key,
+                              timeout=self._TIMEOUT_SEC, max_retries=0)
 
     def chat(self, messages: list[dict], tag: str = "", **kw) -> ChatResult:
         """瞬时错误退避重试（3/8/15s，共 4 次尝试）；任何终态失败 raise LLMError。
