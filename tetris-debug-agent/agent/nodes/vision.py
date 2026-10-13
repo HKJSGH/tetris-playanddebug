@@ -140,7 +140,7 @@ def node_vision(state: dict) -> dict:
         result = llm.chat(
             [{"role": "system", "content": system},
              {"role": "user", "content": content}],
-            temperature=0.2,
+            temperature=0.2, tag="vision",
         )
         acc.usage("vision", result)
         try:

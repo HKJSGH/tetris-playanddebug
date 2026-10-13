@@ -97,7 +97,7 @@ def node_patcher(state: dict) -> dict:
     result = llm.chat(
         [{"role": "system", "content": SYSTEM},
          {"role": "user", "content": json.dumps(user, ensure_ascii=False)}],
-        temperature=0.2,
+        temperature=0.2, tag="patcher",
     )
     acc.usage("patcher", result)
     try:

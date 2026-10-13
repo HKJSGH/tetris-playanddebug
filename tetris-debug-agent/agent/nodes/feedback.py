@@ -99,7 +99,7 @@ def node_feedback(state: dict) -> dict:
     result = llm.chat(
         [{"role": "system", "content": SYSTEM},
          {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)}],
-        temperature=0.2,
+        temperature=0.2, tag="feedback",
     )
     acc.usage("feedback", result)
     try:

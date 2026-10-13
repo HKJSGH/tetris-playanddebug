@@ -12,6 +12,16 @@ from agent.tools.srcmap import build_srcmap
 def node_ingest(state: dict) -> dict:
     rd = load_round(state["run_dir"])
     report = run_all_probes(rd)
+    # 探针报告明细落盘到局目录（只进调试账本，不进任何 prompt）：黑板里
+    # 的 probe_report 在 run 结束后无处查看，落一份 JSON 便于逐局回看
+    # 每个探针的 status/confidence/evidence 全文。
+    try:
+        (rd.round_dir / "probe_report.json").write_text(
+            json.dumps(report, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
     catalog = load_catalog()
     sm = build_srcmap()
     fixed_prior: list[str] = []

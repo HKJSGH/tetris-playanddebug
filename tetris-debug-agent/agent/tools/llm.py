@@ -18,11 +18,74 @@ import json
 import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from agent.config import (
     TEXT_API_KEY_ENV, TEXT_BASE_URL, TEXT_MODEL,
     VISION_API_KEY_ENV, VISION_BASE_URL, VISION_MODEL,
 )
+
+
+# ---- LLM 调用追踪（中间产物落盘，调试用）------------------------------------
+# 所有 LLM 调用的唯一出入口就在本文件 chat()，在这里拦截一处即可覆盖全部节点。
+# 开启后每次调用（成功或失败）都追加一行 JSON 到 data/runs/round_N/agent_trace.jsonl，
+# 记录完整的输入消息与输出（含工具循环的中间消息）；vision 消息里的 base64 图片
+# 替换为占位符，防止 trace 文件膨胀到几百 MB。
+_TRACE: Path | None = None
+
+
+def set_llm_trace(round_id: int | None, runs_root: Path | str | None = None) -> None:
+    """开启/关闭 LLM 调用追踪。
+
+    round_id=None 关闭；否则指向 data/runs/round_N/agent_trace.jsonl 并清空旧文件
+    （同一局重复跑时保证 trace 只含本次运行，与 telemetry.jsonl 的清空语义一致）。
+    """
+    global _TRACE
+    if round_id is None:
+        _TRACE = None
+        return
+    d = Path(runs_root) / f"round_{round_id}"
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / "agent_trace.jsonl"
+    p.write_text("", encoding="utf-8")
+    _TRACE = p
+
+
+def _strip_media(messages: list[dict]) -> list[dict]:
+    """深拷贝消息列表，把 image_url 部件的 base64 数据替换为占位符。
+
+    trace 是给人看的调试产物，图片本体没有阅读价值；不替换的话每张截图
+    会给 trace 文件增加几 MB。tool 消息 / tool_calls 等其余字段原样保留。
+    """
+    out = []
+    for m in messages:
+        m2 = dict(m)
+        c = m2.get("content")
+        if isinstance(c, list):
+            parts = []
+            for p in c:
+                if isinstance(p, dict) and p.get("type") == "image_url":
+                    parts.append({"type": "image_url", "image_url": {"url": "<base64 已省略>"}})
+                else:
+                    parts.append(p)
+            m2["content"] = parts
+        out.append(m2)
+    return out
+
+
+def _trace_record(tag: str, kind: str, **fields) -> None:
+    """追加一条调用记录到 trace 文件；未开启或写盘失败时静默跳过。
+
+    写盘失败不抛异常：trace 是调试辅助，绝不能反过来弄挂正式流程。
+    """
+    if _TRACE is None:
+        return
+    rec = {"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "tag": tag, "kind": kind, **fields}
+    try:
+        with _TRACE.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False, default=str) + "\n")
+    except OSError:
+        pass
 
 
 class LLMError(RuntimeError):
@@ -71,8 +134,12 @@ class OpenAICompatLLM:
         self.model = model
         self._client = OpenAI(base_url=base_url, api_key=api_key)
 
-    def chat(self, messages: list[dict], **kw) -> ChatResult:
-        """瞬时错误退避重试（3/8/15s，共 4 次尝试）；任何终态失败 raise LLMError。"""
+    def chat(self, messages: list[dict], tag: str = "", **kw) -> ChatResult:
+        """瞬时错误退避重试（3/8/15s，共 4 次尝试）；任何终态失败 raise LLMError。
+
+        tag = 调用方节点标识（如 "diagnostician"），只用于 trace 落盘归类，
+        不透传给 SDK。成功与最终失败（LLMError 抛出前）都写一条 trace 记录。
+        """
         last: Exception | None = None
         for i in range(len(self._RETRY_WAIT) + 1):
             try:
@@ -96,20 +163,31 @@ class OpenAICompatLLM:
                 details = getattr(usage, "prompt_tokens_details", None)
                 cached = (getattr(details, "cached_tokens", None)
                           or getattr(usage, "prompt_cache_hit_tokens", None) or 0)
-                return ChatResult(
+                result = ChatResult(
                     text=text or "",
                     prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
                     completion_tokens=getattr(usage, "completion_tokens", 0) or 0,
                     cached_tokens=cached,
                     tool_calls=tool_calls,
                 )
+                _trace_record(tag, "ok", model=self.model,
+                              messages=_strip_media(messages), text=result.text,
+                              tool_calls=result.tool_calls,
+                              usage={"prompt": result.prompt_tokens,
+                                     "completion": result.completion_tokens,
+                                     "cached": result.cached_tokens})
+                return result
             except Exception as e:  # noqa: BLE001
                 last = e
                 if _is_retriable(e) and i < len(self._RETRY_WAIT):
                     time.sleep(self._RETRY_WAIT[i])
                     continue
                 break
-        # 重试耗尽或不可重试（认证错误/意外异常）：统一归类为 LLMError 冒泡中止
+        # 重试耗尽或不可重试（认证错误/意外异常）：统一归类为 LLMError 冒泡中止；
+        # 抛出前写一条 error 记录（输入消息 + 最终异常），LLMError 中止的局
+        # 也能在 trace 里看到最后那次调用到底发了什么
+        _trace_record(tag, "error", model=self.model, messages=_strip_media(messages),
+                      error=f"{type(last).__name__}: {last}" if last else "LLM 调用失败（无异常详情）")
         raise LLMError(f"{type(last).__name__}: {last}" if last else "LLM 调用失败（无异常详情）") from last
 
 

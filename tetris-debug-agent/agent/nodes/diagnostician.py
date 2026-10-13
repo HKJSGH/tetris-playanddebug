@@ -178,7 +178,7 @@ def _diagnose_with_source(state: dict, payload: dict, acc: TokenDelta,
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
     ]
     for _ in range(MAX_TOOL_ROUNDS):
-        result = llm.chat(messages, tools=tools_schema, temperature=0.2)
+        result = llm.chat(messages, tools=tools_schema, temperature=0.2, tag="diagnostician")
         acc.usage("diagnostician", result)
         if not result.tool_calls:
             return parse_json_text(result.text)
@@ -198,7 +198,7 @@ def _diagnose_with_source(state: dict, payload: dict, acc: TokenDelta,
     # 工具轮数用完：强制作答收尾（不带 tools，模型无法再发起调用）
     messages.append({"role": "user",
                      "content": "工具调用额度已用完，请基于已获得的信息输出最终假设清单 JSON 数组。"})
-    final = llm.chat(messages, temperature=0.2)
+    final = llm.chat(messages, temperature=0.2, tag="diagnostician")
     acc.usage("diagnostician", final)
     return parse_json_text(final.text)
 

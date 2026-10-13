@@ -197,7 +197,7 @@ def _attach_lessons(state: dict, rejected: list[dict], acc: TokenDelta) -> list[
             result = llm.chat(
                 [{"role": "system", "content": LESSON_SYSTEM},
                  {"role": "user", "content": json.dumps(records, ensure_ascii=False)}],
-                temperature=0.2,
+                temperature=0.2, tag="wrapup",
             )
             acc.usage("wrapup", result)
             data = parse_json_text(result.text)

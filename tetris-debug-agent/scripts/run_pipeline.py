@@ -29,7 +29,7 @@ from agent.config import (  # noqa: E402
 )
 from agent.graph import build_graph  # noqa: E402
 from agent.state import merge_tokens  # noqa: E402
-from agent.tools.llm import LLMError  # noqa: E402
+from agent.tools.llm import LLMError, set_llm_trace  # noqa: E402
 
 EVAL_DIR = SANDBOX_ROOT / "eval"
 LOGS_DIR = SANDBOX_ROOT / "logs"
@@ -221,10 +221,28 @@ def _digest(node: str, delta: dict) -> str:
     return "写键: " + ", ".join(sorted(k for k in delta if k != "tokens"))
 
 
+# 收尾快照写进局目录 agent_state.json 的黑板键（LLM 中途异常中止时也保留
+# 已写入的部分，便于回看中断时流程走到哪一步）；
+# round_data / catalog / srcmap 是大体量内部对象，另有 probe_report.json 落盘，不进快照
+_SNAPSHOT_KEYS = (
+    "hypotheses", "hypothesis_cursor", "hypothesis_batch_start", "current_hypothesis",
+    "fixed_phenomena", "rejected", "deferred", "attempt_log", "errors", "tokens",
+    "patch", "test_result", "patch_attempts", "patch_attempts_total", "rediag_rounds",
+    "patch_error", "regressions", "fixed_prior", "rejected_prior", "vision_findings",
+    "feedback_symptoms",
+)
+
+
 def run_round(app, round_id: int, mode: str, max_patch_attempts: int,
               max_hypotheses: int, verbose: bool = False,
               max_patch_total: int = PATCH_BUDGET_TOTAL) -> tuple[dict, Path]:
-    """跑一局。黑板流始终写日志文件；echo=verbose 决定是否同时打印到控制台。"""
+    """跑一局。黑板流始终写日志文件；echo=verbose 决定是否同时打印到控制台。
+
+    中间产物落盘三件（都在 data/runs/round_N/，不入库）：
+      agent_trace.jsonl  - 每次 LLM 调用的完整输入消息+输出（llm.py 统一拦截）
+      probe_report.json  - 探针报告明细（ingest 节点写）
+      agent_state.json   - 跑完后黑板关键状态快照（本函数 finally 写）
+    """
     state = {
         "round_id": round_id,
         "run_dir": str(RUNS_ROOT / f"round_{round_id}"),
@@ -245,6 +263,9 @@ def run_round(app, round_id: int, mode: str, max_patch_attempts: int,
             print(msg)
 
     log(f"# round {round_id}  mode={mode}  {time.strftime('%Y-%m-%d %H:%M:%S')}  日志={log_path.name}")
+    # 开启 LLM 调用追踪（重复开启自动清空旧 trace，幂等重跑）；mock 模式下
+    # MockLLM 不写 trace，文件保持为空属预期
+    set_llm_trace(round_id, RUNS_ROOT)
 
     final: dict = dict(state)
     try:
@@ -269,6 +290,16 @@ def run_round(app, round_id: int, mode: str, max_patch_attempts: int,
         print("  本局已中止，fixes.json/eval 未写入（无数据污染）。请检查网络后重跑。")
         raise
     finally:
+        # 黑板关键状态快照落盘（LLM 中止也写已累积的部分）；写盘失败不影响主流程
+        try:
+            snap = {k: final.get(k) for k in _SNAPSHOT_KEYS if final.get(k) is not None}
+            (RUNS_ROOT / f"round_{round_id}" / "agent_state.json").write_text(
+                json.dumps(snap, ensure_ascii=False, indent=2, default=str),
+                encoding="utf-8",
+            )
+        except Exception:  # noqa: BLE001
+            pass
+        set_llm_trace(None)   # 关闭追踪，防泄漏到下一局
         fh.close()
     return final, log_path
 
